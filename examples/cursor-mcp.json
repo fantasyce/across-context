@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "across-context": {
+      "command": "across-context",
+      "args": ["mcp"]
+    }
+  }
+}
