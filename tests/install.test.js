@@ -22,5 +22,5 @@ test("install command prepares agent-specific integration files or commands", as
 
   assert.match(await readFile(join(project, "AGENTS.md"), "utf8"), /Prefer small tests/);
   assert.match(await readFile(join(project, ".cursor", "mcp.json"), "utf8"), /across-context/);
-  assert.match(stdout, /claude mcp add across-context -- across-context mcp/);
+  assert.match(stdout, /claude mcp add -s user across-context -- across-context mcp/);
 });

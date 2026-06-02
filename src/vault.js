@@ -1,5 +1,6 @@
-import { appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
+import { MemoryPolicyEngine, normalizeMemoryText } from "./memory-policy.js";
 import {
   defaultHome,
   newMemoryId,
@@ -14,6 +15,7 @@ import {
 export class ContextVault {
   constructor(options = {}) {
     this.home = resolve(options.home || defaultHome());
+    this.policy = new MemoryPolicyEngine(options.policy || {});
   }
 
   async init() {
@@ -30,24 +32,55 @@ export class ContextVault {
     if (!input.text || !String(input.text).trim()) {
       throw new Error("Memory text is required");
     }
+    if (scope === "project" && !input.projectRoot) {
+      throw new Error("projectRoot is required for project memories");
+    }
+
+    const existing = await this.listMemories({
+      projectRoot: input.projectRoot,
+      includeGlobal: true
+    });
+    const decision = this.policy.evaluate({
+      text: input.text,
+      scope,
+      type,
+      projectRoot: input.projectRoot,
+      tags: input.tags || []
+    }, existing);
+
+    if (decision.status === "deny") {
+      throw new Error(`Memory rejected: ${decision.reason}`);
+    }
+    if (decision.status === "duplicate") {
+      return {
+        ...decision.entry,
+        duplicateOf: decision.matchedId,
+        policy: {
+          status: decision.status,
+          reason: decision.reason
+        }
+      };
+    }
 
     const timestamp = nowIso();
     const entry = {
       id: newMemoryId(),
       scope,
       type,
-      text: String(input.text).trim(),
+      text: decision.text,
       tags: splitTags(input.tags),
       source: input.source,
+      status: "active",
+      policy: {
+        status: decision.status,
+        trimmed: Boolean(decision.trimmed)
+      },
       createdAt: timestamp,
       updatedAt: timestamp
     };
 
     let file = join(this.home, "global", "memories.jsonl");
     if (scope === "project") {
-      if (!input.projectRoot) {
-        throw new Error("projectRoot is required for project memories");
-      }
       const root = resolve(input.projectRoot);
       const projectId = stableProjectId(root);
       entry.projectId = projectId;
@@ -72,6 +105,65 @@ export class ContextVault {
       memories.push(...await readJsonl(join(this.home, "projects", projectId, "memories.jsonl")));
     }
     return memories.sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+  }
+
+  async stats(options = {}) {
+    const memories = await this.listMemories(options);
+    return {
+      home: this.home,
+      total: memories.length,
+      byScope: countBy(memories, "scope"),
+      byType: countBy(memories, "type"),
+      byStatus: countBy(memories.map((entry) => ({ ...entry, status: entry.status || "active" })), "status")
+    };
+  }
+
+  async forget(id) {
+    await this.init();
+    const targetId = String(id || "").trim();
+    if (!targetId) {
+      throw new Error("Memory id is required");
+    }
+
+    let forgotten = 0;
+    for (const file of await this.#memoryFiles()) {
+      const memories = await readJsonl(file);
+      const kept = memories.filter((entry) => {
+        if (entry.id === targetId) {
+          forgotten += 1;
+          return false;
+        }
+        return true;
+      });
+      if (kept.length !== memories.length) {
+        await writeJsonl(file, kept);
+      }
+    }
+    return { forgotten };
+  }
+
+  async compact(options = {}) {
+    await this.init();
+    let removed = 0;
+    const files = await this.#memoryFiles(options.projectRoot);
+    for (const file of files) {
+      const memories = await readJsonl(file);
+      const seen = new Set();
+      const kept = [];
+      for (const entry of memories) {
+        const key = `${entry.scope}:${entry.projectId || "global"}:${entry.type}:${normalizeMemoryText(entry.text)}`;
+        if (seen.has(key)) {
+          removed += 1;
+          continue;
+        }
+        seen.add(key);
+        kept.push(entry);
+      }
+      if (kept.length !== memories.length) {
+        await writeJsonl(file, kept);
+      }
+    }
+    return { removed };
   }
 
   async search(input) {
@@ -119,6 +211,27 @@ export class ContextVault {
       await writeFile(file, "", "utf8");
     }
   }
+
+  async #memoryFiles(projectRoot) {
+    const files = [join(this.home, "global", "memories.jsonl")];
+    if (projectRoot) {
+      files.push(join(this.home, "projects", stableProjectId(resolve(projectRoot)), "memories.jsonl"));
+      return files;
+    }
+
+    const projectsRoot = join(this.home, "projects");
+    try {
+      const entries = await readdir(projectsRoot, { withFileTypes: true });
+      for (const entry of entries) {
+        if (entry.isDirectory()) {
+          files.push(join(projectsRoot, entry.name, "memories.jsonl"));
+        }
+      }
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+    }
+    return files;
+  }
 }
 
 export async function readJsonl(file) {
@@ -135,6 +248,12 @@ export async function readJsonl(file) {
   }
 }
 
+export async function writeJsonl(file, entries) {
+  await mkdir(dirname(file), { recursive: true });
+  const content = entries.map((entry) => JSON.stringify(dropUndefined(entry))).join("\n");
+  await writeFile(file, content ? `${content}\n` : "", "utf8");
+}
+
 function scoreEntry(entry, terms) {
   const haystack = `${entry.text} ${entry.type} ${(entry.tags || []).join(" ")} ${entry.projectName || ""}`.toLowerCase();
   return terms.reduce((score, term) => {
@@ -146,4 +265,12 @@ function scoreEntry(entry, terms) {
 
 function dropUndefined(value) {
   return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined));
+}
+
+function countBy(entries, key) {
+  return entries.reduce((counts, entry) => {
+    const value = entry[key] || "unknown";
+    counts[value] = (counts[value] || 0) + 1;
+    return counts;
+  }, {});
 }

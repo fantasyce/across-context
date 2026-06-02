@@ -1,0 +1,76 @@
+const DEFAULT_MAX_TEXT_LENGTH = 1200;
+const SECRET_PATTERNS = [
+  /\bsk-[a-zA-Z0-9_-]{12,}\b/,
+  /\bgh[pousr]_[a-zA-Z0-9_]{20,}\b/,
+  /\b(api[_-]?key|token|secret|password|passwd|cookie)\s*[:=]\s*\S+/i,
+  /-----BEGIN [A-Z ]*PRIVATE KEY-----/
+];
+
+export class MemoryPolicyEngine {
+  constructor(options = {}) {
+    this.maxTextLength = Number(options.maxTextLength || DEFAULT_MAX_TEXT_LENGTH);
+    this.allowDuplicates = Boolean(options.allowDuplicates);
+  }
+
+  evaluate(input, existingMemories = []) {
+    const text = normalizeWhitespace(input.text);
+    if (!text) {
+      return { status: "deny", reason: "Memory text is required." };
+    }
+
+    if (containsSecret(text)) {
+      return { status: "deny", reason: "Memory looks like a secret or credential." };
+    }
+
+    if (!this.allowDuplicates) {
+      const duplicate = findDuplicate(text, input, existingMemories);
+      if (duplicate) {
+        return {
+          status: "duplicate",
+          reason: "A matching memory already exists.",
+          matchedId: duplicate.id,
+          entry: duplicate
+        };
+      }
+    }
+
+    const trimmed = trimToLimit(text, this.maxTextLength);
+    return {
+      status: "allow",
+      reason: trimmed.didTrim ? "Memory was trimmed to the configured length limit." : "Memory passed policy.",
+      text: trimmed.text,
+      trimmed: trimmed.didTrim
+    };
+  }
+}
+
+export function normalizeMemoryText(text) {
+  return normalizeWhitespace(text).toLowerCase();
+}
+
+export function containsSecret(text) {
+  return SECRET_PATTERNS.some((pattern) => pattern.test(text));
+}
+
+function findDuplicate(text, input, existingMemories) {
+  const normalized = normalizeMemoryText(text);
+  return existingMemories.find((entry) => {
+    if (entry.scope !== input.scope) return false;
+    if (entry.type !== input.type) return false;
+    return normalizeMemoryText(entry.text) === normalized;
+  });
+}
+
+function normalizeWhitespace(text) {
+  return String(text || "").replace(/\s+/g, " ").trim();
+}
+
+function trimToLimit(text, maxLength) {
+  if (!maxLength || text.length <= maxLength) {
+    return { text, didTrim: false };
+  }
+  const suffix = "...";
+  const sliced = text.slice(0, Math.max(0, maxLength - suffix.length)).trimEnd();
+  return { text: `${sliced}${suffix}`, didTrim: true };
+}
+

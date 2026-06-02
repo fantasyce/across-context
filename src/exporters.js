@@ -34,6 +34,15 @@ export async function renderContextDocument(vault, input) {
   appendMemorySection(lines, "Global Preferences", globalMemories);
   appendMemorySection(lines, "Project Memory", projectMemories);
 
+  lines.push("## Across Context Automation");
+  lines.push("");
+  lines.push("- Task start memory lookup: before planning or editing, search Across Context for relevant global and project memory.");
+  lines.push("- During work: use project context before architecture, release, dependency, test, or documentation decisions.");
+  lines.push("- Before final response memory write: remember only durable user preferences, project decisions, reusable commands, and compact session summaries.");
+  lines.push("- Never write secrets, API keys, tokens, credentials, cookies, huge logs, full chat history, temporary errors, private screenshots, or one-off noise.");
+  lines.push("- Prefer updating or reusing an existing memory instead of creating duplicate memories.");
+  lines.push("");
+
   lines.push("## Safety");
   lines.push("");
   lines.push("- Do not expose API keys, tokens, private local paths, or private project names in public output.");

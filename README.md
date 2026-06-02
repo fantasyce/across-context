@@ -50,94 +50,81 @@ across-context --help
 
 ## Quick Start
 
-Create the local vault:
+Run one command from a project directory:
 
 ```bash
-across-context init
+across-context setup --all --yes
 ```
 
-Remember a global preference:
+This creates the local vault, detects supported local agents, registers the MCP
+server where possible, and writes project instruction files such as
+`AGENTS.md`, `CLAUDE.md`, and Cursor rules. If you want to generate project
+files without changing user-level agent configuration, run:
+
+```bash
+across-context setup --all --yes --no-external
+```
+
+Verify the installation:
+
+```bash
+across-context doctor
+across-context status
+```
+
+Add a durable user preference:
 
 ```bash
 across-context remember "Prefer small commits with tests." --type preference
 ```
 
-Remember project-specific context:
+Add project-specific context:
 
 ```bash
 across-context remember "Run npm test before final answers." --scope project --project . --type command
 ```
 
-Learn project metadata:
-
-```bash
-across-context project learn .
-```
-
-Search memory:
+Search, list, and manage memory:
 
 ```bash
 across-context search "tests before final" --project .
+across-context list
+across-context stats
+across-context compact
 ```
 
-Generate instruction files:
+## Automated Agent Behavior
 
-```bash
-across-context export agents --project .
-across-context export claude --project .
-across-context export cursor --project .
-```
+Across Context installs more than MCP plumbing. Generated agent instruction
+files include behavior rules that tell agents when to use the memory layer:
 
-Install agent integrations:
+- Task start memory lookup: search relevant global and project memory before planning or editing.
+- During work: use project context before architecture, release, dependency, test, or documentation decisions.
+- Before final response memory write: store only durable user preferences, project decisions, reusable commands, and compact session summaries.
+- Never write secrets, API keys, tokens, credentials, cookies, huge logs, full chat history, temporary errors, private screenshots, or one-off noise.
 
-```bash
-across-context install codex --project .
-across-context install cursor --project .
-across-context install claude-code --stdout
-```
+This means users should not need to remind every agent in natural language on
+every task. MCP provides the tools; generated rules teach the agent when to use
+them; the memory policy protects the vault from low-value or unsafe writes.
 
 ## Agent Setup
 
-### Codex
+The one-command setup path supports:
 
-Codex reads repository instructions from `AGENTS.md`.
+| Agent | Setup behavior |
+| --- | --- |
+| Codex | Writes `AGENTS.md` and runs `codex mcp add across-context -- across-context mcp` when available. |
+| Claude Code | Writes `CLAUDE.md` and runs `claude mcp add -s user across-context -- across-context mcp` when available. |
+| Cursor | Writes `.cursor/mcp.json` and `.cursor/rules/across-context.mdc`. |
+| Hermes | Runs `hermes mcp add across-context --command across-context --args mcp` when available. |
+| OpenClaw | Runs `openclaw mcp set across-context '{"command":"across-context","args":["mcp"]}'` when available. |
+
+Manual commands are still available:
 
 ```bash
 across-context install codex --project .
-```
-
-Review the generated file before committing it. Keep private preferences in the
-local vault unless the whole team should share them.
-
-### Claude Code
-
-Claude Code can use Across Context through MCP:
-
-```bash
-across-context install claude-code --stdout
-```
-
-Run the printed command to add the MCP server.
-
-### Cursor
-
-Cursor can use the MCP server with a project config similar to:
-
-```json
-{
-  "mcpServers": {
-    "across-context": {
-      "command": "across-context",
-      "args": ["mcp"]
-    }
-  }
-}
-```
-
-Create the MCP config and a Cursor rule file:
-
-```bash
 across-context install cursor --project .
+across-context install claude-code --stdout
 ```
 
 ## MCP Tools
@@ -176,12 +163,37 @@ For tests or isolated runs, set:
 ACROSS_CONTEXT_HOME=/tmp/across-context-demo across-context init
 ```
 
+## Memory Policy
+
+All CLI and MCP writes go through the same policy engine before they reach the
+vault.
+
+Allowed memory types:
+
+- `preference` - stable user preferences
+- `decision` - durable project or architecture decisions
+- `command` - reusable build, test, release, or troubleshooting commands
+- `session` - compact handoff summaries
+- `note` - short durable context that does not fit the categories above
+
+Rejected or controlled writes:
+
+- Secrets and credentials are rejected before writing.
+- Duplicate memories return the existing entry instead of appending another line.
+- Long memories are trimmed to a safe default length.
+- `compact` removes duplicate records already on disk.
+- `forget <id>` removes a memory by id.
+
+The goal is to make automatic memory useful without letting agents store full
+chat histories, huge logs, temporary errors, or private credentials.
+
 ## Privacy Model
 
 - The vault is local-first and not synced by this package.
 - Public exports never include absolute project paths.
 - Generated files should be reviewed before committing.
 - Do not store API keys, tokens, credentials, private screenshots, or secrets.
+- Use `--no-external` when you want project files without changing user-level agent settings.
 
 ## Development
 
