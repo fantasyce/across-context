@@ -26,14 +26,26 @@ The vault stays local by default. Export files are explicit and reviewable.
 
 This MVP has no runtime npm dependencies.
 
+The repository is currently a private preview and the package is not published
+to npm yet. Install from a private checkout:
+
 ```bash
-npm install -g @across/context
+gh repo clone fantasyce/across-context
+cd across-context
+npm link
 ```
 
-For local development from this repository:
+Or install a local tarball:
 
 ```bash
-npm link
+npm pack
+npm install -g ./across-context-0.1.0.tgz
+```
+
+After installation, verify:
+
+```bash
+across-context --help
 ```
 
 ## Quick Start
