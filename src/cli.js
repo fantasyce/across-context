@@ -4,6 +4,7 @@ import { ContextVault } from "./vault.js";
 import { learnProject } from "./project.js";
 import { exportContext, renderContextDocument } from "./exporters.js";
 import { installAgent } from "./installers.js";
+import { doctorAcrossContext, setupAcrossContext, statusAcrossContext } from "./setup.js";
 
 const vault = new ContextVault();
 
@@ -54,6 +55,48 @@ async function main(argv) {
     return;
   }
 
+  if (command === "list") {
+    const parsed = parseArgs(rest);
+    const memories = await vault.listMemories({
+      projectRoot: parsed.project,
+      includeGlobal: true
+    });
+    if (parsed.json) {
+      console.log(JSON.stringify(memories, null, 2));
+      return;
+    }
+    if (!memories.length) {
+      console.log("No memories found.");
+      return;
+    }
+    for (const entry of memories) {
+      console.log(`${entry.id} [${entry.scope}/${entry.type}] ${entry.text}`);
+    }
+    return;
+  }
+
+  if (command === "forget") {
+    const parsed = parseArgs(rest);
+    const id = parsed.positionals[0];
+    const result = await vault.forget(id);
+    console.log(`forgotten: ${result.forgotten}`);
+    return;
+  }
+
+  if (command === "stats") {
+    const parsed = parseArgs(rest);
+    const stats = await vault.stats({ projectRoot: parsed.project });
+    console.log(formatStats(stats));
+    return;
+  }
+
+  if (command === "compact") {
+    const parsed = parseArgs(rest);
+    const result = await vault.compact({ projectRoot: parsed.project });
+    console.log(`removed: ${result.removed}`);
+    return;
+  }
+
   if (command === "project") {
     const [subcommand, ...subRest] = rest;
     if (subcommand !== "learn") {
@@ -96,6 +139,37 @@ async function main(argv) {
     } else {
       console.log(`Installed ${result.target} integration at ${result.path}`);
     }
+    return;
+  }
+
+  if (command === "setup") {
+    const parsed = parseArgs(rest);
+    const projectRoot = resolve(parsed.project || process.cwd());
+    const targets = parsed.all ? ["all"] : parsed.positionals;
+    const result = await setupAcrossContext({
+      vault,
+      projectRoot,
+      targets,
+      yes: Boolean(parsed.yes),
+      noExternal: Boolean(parsed["no-external"])
+    });
+    console.log(formatSetupResult(result));
+    return;
+  }
+
+  if (command === "doctor") {
+    const parsed = parseArgs(rest);
+    const projectRoot = resolve(parsed.project || process.cwd());
+    const result = await doctorAcrossContext({ vault, projectRoot });
+    console.log(formatDoctor(result));
+    return;
+  }
+
+  if (command === "status") {
+    const parsed = parseArgs(rest);
+    const projectRoot = resolve(parsed.project || process.cwd());
+    const result = await statusAcrossContext({ vault, projectRoot });
+    console.log(formatStatus(result));
     return;
   }
 
@@ -147,11 +221,70 @@ Commands:
   init                                  Create the local context vault
   remember <text> [--scope global|project] [--type preference|decision|note|command|session] [--project path]
   search <query> [--project path]       Search global and project context
+  list [--project path] [--json]        List stored memories
+  forget <memory-id>                    Remove a memory by id
+  stats [--project path]                Show memory counts
+  compact [--project path]              Remove duplicate records from the vault
   project learn [path]                  Learn project commands and metadata
   export <agents|claude|cursor|markdown> [--project path] [--stdout]
   install <codex|cursor|claude-code> [--project path] [--stdout]
+  setup [--all] [--yes] [--no-external] [--project path]
+  doctor [--project path]               Verify vault, project files, and local agent availability
+  status [--project path]               Show vault and agent summary
   mcp                                   Start MCP stdio server
 `);
+}
+
+function formatStats(stats) {
+  const lines = [`home: ${stats.home}`, `total: ${stats.total}`];
+  lines.push(`by scope: ${formatCounts(stats.byScope)}`);
+  lines.push(`by type: ${formatCounts(stats.byType)}`);
+  return lines.join("\n");
+}
+
+function formatSetupResult(result) {
+  const lines = [
+    "Setup complete",
+    `vault: ${result.home}`,
+    `project files: ${result.project.installed.length}`
+  ];
+  for (const registration of result.registrations) {
+    lines.push(`agent ${registration.agent}: ${registration.status}`);
+  }
+  return lines.join("\n");
+}
+
+function formatDoctor(result) {
+  const lines = [
+    `vault: ${result.vault.status}`,
+    `AGENTS.md: ${result.project.files.AGENTS}`,
+    `CLAUDE.md: ${result.project.files.CLAUDE}`,
+    `Cursor rules: ${result.project.files.CURSOR}`,
+    `Cursor MCP: ${result.project.files.CURSOR_MCP}`,
+    "agents:"
+  ];
+  for (const agent of result.agents) {
+    lines.push(`- ${agent.id}: ${agent.status}`);
+  }
+  return lines.join("\n");
+}
+
+function formatStatus(result) {
+  const lines = [
+    `vault: ${result.home}`,
+    `memories: ${result.memories.total}`,
+    "agents:"
+  ];
+  for (const agent of result.agents) {
+    lines.push(`- ${agent.id}: ${agent.available ? "available" : "missing"}`);
+  }
+  return lines.join("\n");
+}
+
+function formatCounts(counts) {
+  const entries = Object.entries(counts || {});
+  if (!entries.length) return "none";
+  return entries.map(([key, value]) => `${key}=${value}`).join(", ");
 }
 
 main(process.argv.slice(2)).catch((error) => {

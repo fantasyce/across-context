@@ -9,7 +9,11 @@
   },
   "files": [
     "src",
+    "examples",
+    "docs/assets",
     "README.md",
+    "CONTRIBUTING.md",
+    "SECURITY.md",
     "LICENSE"
   ],
   "scripts": {

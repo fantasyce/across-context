@@ -28,7 +28,7 @@ export async function installAgent(vault, target, options = {}) {
   if (target === "claude-code" || target === "claude") {
     return {
       target: "claude-code",
-      command: "claude mcp add across-context -- across-context mcp"
+      command: "claude mcp add -s user across-context -- across-context mcp"
     };
   }
   throw new Error(`Unknown install target: ${target}`);
