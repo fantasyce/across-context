@@ -35,11 +35,13 @@ export class MemoryPolicyEngine {
     }
 
     const trimmed = trimToLimit(text, this.maxTextLength);
+    const status = defaultStatus(input);
     return {
       status: "allow",
       reason: trimmed.didTrim ? "Memory was trimmed to the configured length limit." : "Memory passed policy.",
       text: trimmed.text,
-      trimmed: trimmed.didTrim
+      trimmed: trimmed.didTrim,
+      memoryStatus: status
     };
   }
 }
@@ -74,3 +76,11 @@ function trimToLimit(text, maxLength) {
   return { text: `${sliced}${suffix}`, didTrim: true };
 }
 
+function defaultStatus(input) {
+  if (input.status) return input.status;
+  if (!input.auto) return "active";
+  if (input.type === "preference" || input.type === "decision" || input.type === "command") {
+    return "active";
+  }
+  return "pending";
+}

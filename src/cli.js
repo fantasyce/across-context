@@ -5,6 +5,9 @@ import { learnProject } from "./project.js";
 import { exportContext, renderContextDocument } from "./exporters.js";
 import { installAgent } from "./installers.js";
 import { doctorAcrossContext, setupAcrossContext, statusAcrossContext } from "./setup.js";
+import { renderAgentCard } from "./agent-card.js";
+import { runHook } from "./hooks.js";
+import { startDashboard } from "./dashboard.js";
 
 const vault = new ContextVault();
 
@@ -30,7 +33,9 @@ async function main(argv) {
       type: parsed.type || "note",
       tags: parsed.tag || parsed.tags || [],
       projectRoot: parsed.project,
-      source: "cli"
+      source: "cli",
+      auto: Boolean(parsed.auto),
+      visibility: parsed.visibility
     });
     console.log(`Remembered ${entry.scope} ${entry.type}: ${entry.text}`);
     return;
@@ -43,7 +48,9 @@ async function main(argv) {
       query,
       projectRoot: parsed.project,
       limit: Number(parsed.limit || 20),
-      includeGlobal: true
+      includeGlobal: true,
+      mode: parsed.mode || "keyword",
+      status: parsed.status
     });
     if (!results.length) {
       console.log("No matching context found.");
@@ -52,6 +59,35 @@ async function main(argv) {
     for (const result of results) {
       console.log(`[${result.entry.scope}/${result.entry.type}] ${result.entry.text}`);
     }
+    return;
+  }
+
+  if (command === "pending") {
+    const parsed = parseArgs(rest);
+    const memories = await vault.listMemories({
+      projectRoot: parsed.project,
+      includeGlobal: true,
+      status: "pending"
+    });
+    if (parsed.json) {
+      console.log(JSON.stringify(memories, null, 2));
+      return;
+    }
+    if (!memories.length) {
+      console.log("No pending memories.");
+      return;
+    }
+    for (const entry of memories) {
+      console.log(`${entry.id} [${entry.scope}/${entry.type}] ${entry.text}`);
+    }
+    return;
+  }
+
+  if (command === "approve" || command === "archive" || command === "expire") {
+    const parsed = parseArgs(rest);
+    const status = command === "approve" ? "active" : command === "archive" ? "archived" : "expired";
+    const entry = await vault.updateStatus(parsed.positionals[0], status);
+    console.log(`${entry.id}: ${entry.status}`);
     return;
   }
 
@@ -94,6 +130,38 @@ async function main(argv) {
     const parsed = parseArgs(rest);
     const result = await vault.compact({ projectRoot: parsed.project });
     console.log(`removed: ${result.removed}`);
+    return;
+  }
+
+  if (command === "agent-card") {
+    const parsed = parseArgs(rest);
+    const card = await renderAgentCard(vault);
+    console.log(parsed.json ? JSON.stringify(card, null, 2) : formatAgentCard(card));
+    return;
+  }
+
+  if (command === "team") {
+    const [subcommand, ...teamRest] = rest;
+    if (subcommand !== "export") {
+      throw new Error("Usage: across-context team export [--project path]");
+    }
+    const parsed = parseArgs(teamRest);
+    const result = await vault.exportTeamMemory({ projectRoot: parsed.project || process.cwd() });
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+
+  if (command === "hook") {
+    const [name, ...hookRest] = rest;
+    const parsed = parseArgs(hookRest);
+    const result = await runHook(vault, {
+      name,
+      query: parsed.query || parsed.positionals.join(" "),
+      summary: parsed.summary || parsed.positionals.join(" "),
+      projectRoot: parsed.project,
+      mode: parsed.mode
+    });
+    console.log(result.text);
     return;
   }
 
@@ -173,6 +241,17 @@ async function main(argv) {
     return;
   }
 
+  if (command === "dashboard") {
+    const parsed = parseArgs(rest);
+    const result = await startDashboard(vault, {
+      projectRoot: parsed.project,
+      host: parsed.host,
+      port: parsed.port
+    });
+    console.log(`Across Context Dashboard: ${result.url}`);
+    return;
+  }
+
   if (command === "mcp") {
     await import("./mcp-server.js");
     return;
@@ -220,17 +299,27 @@ function printHelp() {
 Commands:
   init                                  Create the local context vault
   remember <text> [--scope global|project] [--type preference|decision|note|command|session] [--project path]
-  search <query> [--project path]       Search global and project context
+  search <query> [--project path] [--mode keyword|semantic|hybrid]
+                                        Search global and project context
   list [--project path] [--json]        List stored memories
+  pending [--project path] [--json]     List pending automatic memories
+  approve <memory-id>                   Approve a pending memory
+  archive <memory-id>                   Archive a memory
+  expire <memory-id>                    Mark a memory expired
   forget <memory-id>                    Remove a memory by id
   stats [--project path]                Show memory counts
   compact [--project path]              Remove duplicate records from the vault
+  agent-card [--json]                   Print the Across Context agent card
+  team export [--project path]          Export team-safe project memory as JSON
+  hook task-start --query <text> [--project path]
+  hook task-end --summary <text> [--project path]
   project learn [path]                  Learn project commands and metadata
   export <agents|claude|cursor|markdown> [--project path] [--stdout]
   install <codex|cursor|claude-code> [--project path] [--stdout]
   setup [--all] [--yes] [--no-external] [--project path]
   doctor [--project path]               Verify vault, project files, and local agent availability
   status [--project path]               Show vault and agent summary
+  dashboard [--host 127.0.0.1] [--port 3767]
   mcp                                   Start MCP stdio server
 `);
 }
@@ -279,6 +368,15 @@ function formatStatus(result) {
     lines.push(`- ${agent.id}: ${agent.available ? "available" : "missing"}`);
   }
   return lines.join("\n");
+}
+
+function formatAgentCard(card) {
+  return [
+    `${card.name} ${card.version}`,
+    card.description,
+    `MCP: ${card.endpoints.mcp.command} ${card.endpoints.mcp.args.join(" ")}`,
+    `Skills: ${card.skills.map((skill) => skill.id).join(", ")}`
+  ].join("\n");
 }
 
 function formatCounts(counts) {

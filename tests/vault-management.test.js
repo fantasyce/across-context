@@ -61,6 +61,43 @@ test("ContextVault lists, forgets, and reports memory stats", async () => {
   assert.equal((await vault.listMemories()).length, 0);
 });
 
+test("ContextVault stores automatic low-confidence memories as pending and approves them", async () => {
+  const vault = await tempVault();
+
+  const entry = await vault.remember({
+    scope: "global",
+    type: "note",
+    text: "Maybe useful: temporary dashboard experiment.",
+    auto: true
+  });
+
+  assert.equal(entry.status, "pending");
+  assert.equal((await vault.listMemories({ status: "pending" })).length, 1);
+
+  const approved = await vault.updateStatus(entry.id, "active");
+  assert.equal(approved.status, "active");
+  assert.equal((await vault.listMemories({ status: "active" })).length, 1);
+});
+
+test("ContextVault archives and exports team-safe project memories", async () => {
+  const vault = await tempVault();
+  const projectRoot = join(vault.home, "team-project");
+  const entry = await vault.remember({
+    scope: "project",
+    type: "decision",
+    text: "Use the local MCP server for shared memory.",
+    projectRoot,
+    visibility: "team"
+  });
+
+  const archived = await vault.updateStatus(entry.id, "archived");
+  const exported = await vault.exportTeamMemory({ projectRoot });
+
+  assert.equal(archived.status, "archived");
+  assert.ok(exported.memories.every((memory) => memory.visibility === "team"));
+  assert.doesNotMatch(JSON.stringify(exported), new RegExp(projectRoot.replaceAll("/", "\\/")));
+});
+
 test("ContextVault compacts duplicate jsonl records already on disk", async () => {
   const vault = await tempVault();
   await vault.init();

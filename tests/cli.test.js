@@ -54,3 +54,26 @@ test("CLI sets up integrations and manages vault records", async () => {
   assert.match(compact.stdout, /removed:/);
   assert.match(forgotten.stdout, /forgotten: 1/);
 });
+
+test("CLI reviews pending memories, exports agent card, and runs hooks", async () => {
+  const home = await mkdtemp(join(tmpdir(), "across-context-cli-v2-home-"));
+  const project = await mkdtemp(join(tmpdir(), "across-context-cli-v2-project-"));
+  await writeFile(join(project, "package.json"), JSON.stringify({ name: "v2-demo" }));
+  const env = { ...process.env, ACROSS_CONTEXT_HOME: home };
+
+  await exec("node", [cli, "remember", "Maybe remember a temporary UI experiment.", "--auto"], { env });
+  const pending = await exec("node", [cli, "pending", "--json"], { env });
+  const pendingMemories = JSON.parse(pending.stdout);
+  const approved = await exec("node", [cli, "approve", pendingMemories[0].id], { env });
+  await exec("node", [cli, "remember", "Use deterministic task-start hooks.", "--scope", "project", "--project", project, "--type", "command", "--visibility", "team"], { env });
+  const semantic = await exec("node", [cli, "search", "agent bootstrap context", "--mode", "semantic", "--project", project], { env });
+  const card = await exec("node", [cli, "agent-card", "--json"], { env });
+  const team = await exec("node", [cli, "team", "export", "--project", project], { env });
+  const hook = await exec("node", [cli, "hook", "task-start", "--query", "bootstrap", "--project", project], { env });
+
+  assert.match(approved.stdout, /active/);
+  assert.match(semantic.stdout, /deterministic task-start/);
+  assert.equal(JSON.parse(card.stdout).capabilities.memory, true);
+  assert.match(team.stdout, /deterministic task-start/);
+  assert.match(hook.stdout, /deterministic task-start/);
+});

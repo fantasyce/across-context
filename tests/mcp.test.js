@@ -14,9 +14,12 @@ test("MCP server definition exposes memory tools backed by the vault", async () 
   assert.deepEqual(
     definition.tools.map((tool) => tool.name).sort(),
     [
+      "approve_memory",
       "export_agent_instructions",
+      "get_agent_card",
       "get_project_context",
       "remember_context",
+      "review_pending_memories",
       "search_context"
     ]
   );
