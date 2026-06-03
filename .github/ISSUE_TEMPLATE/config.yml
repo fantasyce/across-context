@@ -1,0 +1,9 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Ask a question
+    url: https://github.com/fantasyce/across-context/discussions/categories/q-a
+    about: Use Discussions Q&A for setup questions and usage help.
+  - name: Share an idea
+    url: https://github.com/fantasyce/across-context/discussions/categories/ideas
+    about: Use Discussions Ideas for product direction and brainstorming.
+

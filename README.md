@@ -210,6 +210,12 @@ npm test
 bash scripts/check.sh
 npm pack --dry-run
 ```
+
+### Community and Feedback
+
+- Bug reports: [GitHub Issues](https://github.com/fantasyce/across-context/issues/new/choose)
+- Product ideas: [Discussions Ideas](https://github.com/fantasyce/across-context/discussions/categories/ideas)
+- Setup questions: [Discussions Q&A](https://github.com/fantasyce/across-context/discussions/categories/q-a)
 ## 中文
 
 ### 这个项目是什么
@@ -340,3 +346,9 @@ npm test
 bash scripts/check.sh
 npm pack --dry-run
 ```
+
+### 社区与反馈
+
+- 问题反馈：[GitHub Issues](https://github.com/fantasyce/across-context/issues/new/choose)
+- 产品想法：[Discussions Ideas](https://github.com/fantasyce/across-context/discussions/categories/ideas)
+- 使用问题：[Discussions Q&A](https://github.com/fantasyce/across-context/discussions/categories/q-a)

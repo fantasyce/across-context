@@ -1,0 +1,46 @@
+name: Feature request
+description: Suggest a product or technical improvement.
+title: "[Feature]: "
+labels: ["enhancement", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping shape Across Context. For open-ended brainstorming, Discussions may be a better place than Issues.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user pain or workflow gap does this solve?
+      placeholder: "When switching between agents, I need..."
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the smallest useful version of the feature.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Product area
+      options:
+        - Setup and onboarding
+        - Agent integrations
+        - MCP tools
+        - Memory policy
+        - Project context export
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Optional. Mention other tools, workflows, or designs you compared.
+    validations:
+      required: false
+

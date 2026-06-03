@@ -1,0 +1,14 @@
+title: "[General] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for open-ended Across Context discussions.
+  - type: textarea
+    id: topic
+    attributes:
+      label: Topic
+      description: What would you like to discuss?
+    validations:
+      required: true
+

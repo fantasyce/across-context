@@ -1,0 +1,36 @@
+title: "[Q&A] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for setup questions, agent integration help, and usage guidance.
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: What are you trying to do?
+    validations:
+      required: true
+  - type: dropdown
+    id: agent
+    attributes:
+      label: Related agent
+      options:
+        - Not agent-specific
+        - Codex
+        - Claude Code
+        - Cursor
+        - Hermes
+        - OpenClaw
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Share sanitized commands, version info, and relevant output.
+      render: shell
+    validations:
+      required: false
+

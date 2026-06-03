@@ -1,0 +1,30 @@
+title: "[Idea] "
+labels: ["idea"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for product ideas, integration requests, or workflow improvements.
+  - type: textarea
+    id: idea
+    attributes:
+      label: Idea
+      description: What should Across Context make possible?
+      placeholder: "I want my agents to..."
+    validations:
+      required: true
+  - type: textarea
+    id: users
+    attributes:
+      label: Who is this for?
+      description: Describe the developer, team, or agent workflow that would benefit.
+    validations:
+      required: true
+  - type: textarea
+    id: success
+    attributes:
+      label: What would success look like?
+      description: How would we know this shipped well?
+    validations:
+      required: false
+
