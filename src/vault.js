@@ -1,6 +1,7 @@
 import { appendFile, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { MemoryPolicyEngine, normalizeMemoryText } from "./memory-policy.js";
+import { searchEntries } from "./semantic-search.js";
 import {
   defaultHome,
   newMemoryId,
@@ -45,7 +46,9 @@ export class ContextVault {
       scope,
       type,
       projectRoot: input.projectRoot,
-      tags: input.tags || []
+      tags: input.tags || [],
+      auto: Boolean(input.auto),
+      status: input.status
     }, existing);
 
     if (decision.status === "deny") {
@@ -70,7 +73,8 @@ export class ContextVault {
       text: decision.text,
       tags: splitTags(input.tags),
       source: input.source,
-      status: "active",
+      status: normalizeStatus(decision.memoryStatus || input.status || "active"),
+      visibility: normalizeVisibility(input.visibility || "private"),
       policy: {
         status: decision.status,
         trimmed: Boolean(decision.trimmed)
@@ -104,7 +108,10 @@ export class ContextVault {
       const projectId = stableProjectId(resolve(options.projectRoot));
       memories.push(...await readJsonl(join(this.home, "projects", projectId, "memories.jsonl")));
     }
-    return memories.sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+    return memories
+      .filter((entry) => !options.status || (entry.status || "active") === options.status)
+      .filter((entry) => !options.visibility || (entry.visibility || "private") === options.visibility)
+      .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
   }
 
   async stats(options = {}) {
@@ -142,6 +149,44 @@ export class ContextVault {
     return { forgotten };
   }
 
+  async updateStatus(id, status) {
+    await this.init();
+    const nextStatus = normalizeStatus(status);
+    const targetId = String(id || "").trim();
+    if (!targetId) {
+      throw new Error("Memory id is required");
+    }
+
+    for (const file of await this.#memoryFiles()) {
+      const memories = await readJsonl(file);
+      const index = memories.findIndex((entry) => entry.id === targetId);
+      if (index === -1) continue;
+      const updated = {
+        ...memories[index],
+        status: nextStatus,
+        updatedAt: nowIso()
+      };
+      memories[index] = updated;
+      await writeJsonl(file, memories);
+      return updated;
+    }
+    throw new Error(`Memory not found: ${targetId}`);
+  }
+
+  async exportTeamMemory(options = {}) {
+    const memories = await this.listMemories({
+      projectRoot: options.projectRoot,
+      includeGlobal: false,
+      visibility: "team"
+    });
+    return {
+      version: 1,
+      generatedAt: nowIso(),
+      project: options.projectRoot ? projectName(options.projectRoot) : undefined,
+      memories: memories.map((entry) => sanitizeTeamMemory(entry))
+    };
+  }
+
   async compact(options = {}) {
     await this.init();
     let removed = 0;
@@ -171,16 +216,17 @@ export class ContextVault {
     if (!query) {
       return [];
     }
-    const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
     const memories = await this.listMemories({
       projectRoot: input.projectRoot,
-      includeGlobal: input.includeGlobal !== false
+      includeGlobal: input.includeGlobal !== false,
+      status: input.status,
+      visibility: input.visibility
     });
-    const scored = memories
-      .map((entry) => ({ entry, score: scoreEntry(entry, terms) }))
-      .filter((result) => result.score > 0)
-      .sort((a, b) => b.score - a.score || String(b.entry.createdAt).localeCompare(String(a.entry.createdAt)));
-    return scored.slice(0, input.limit || 20);
+    return searchEntries(memories, {
+      query,
+      mode: input.mode || "keyword",
+      limit: input.limit || 20
+    });
   }
 
   async saveProjectProfile(profile) {
@@ -254,15 +300,6 @@ export async function writeJsonl(file, entries) {
   await writeFile(file, content ? `${content}\n` : "", "utf8");
 }
 
-function scoreEntry(entry, terms) {
-  const haystack = `${entry.text} ${entry.type} ${(entry.tags || []).join(" ")} ${entry.projectName || ""}`.toLowerCase();
-  return terms.reduce((score, term) => {
-    if (haystack.includes(term)) return score + 2;
-    if (term.length > 3 && haystack.includes(term.slice(0, -1))) return score + 1;
-    return score;
-  }, 0);
-}
-
 function dropUndefined(value) {
   return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined));
 }
@@ -273,4 +310,35 @@ function countBy(entries, key) {
     counts[value] = (counts[value] || 0) + 1;
     return counts;
   }, {});
+}
+
+function normalizeStatus(status) {
+  const value = String(status || "active");
+  if (!["pending", "active", "pinned", "archived", "expired"].includes(value)) {
+    throw new Error(`Invalid memory status: ${status}`);
+  }
+  return value;
+}
+
+function normalizeVisibility(visibility) {
+  const value = String(visibility || "private");
+  if (!["private", "team"].includes(value)) {
+    throw new Error(`Invalid memory visibility: ${visibility}`);
+  }
+  return value;
+}
+
+function sanitizeTeamMemory(entry) {
+  return {
+    id: entry.id,
+    scope: entry.scope,
+    type: entry.type,
+    text: entry.text,
+    tags: entry.tags || [],
+    status: entry.status || "active",
+    visibility: entry.visibility || "private",
+    projectName: entry.projectName,
+    createdAt: entry.createdAt,
+    updatedAt: entry.updatedAt
+  };
 }

@@ -39,6 +39,8 @@ export async function renderContextDocument(vault, input) {
   lines.push("- Task start memory lookup: before planning or editing, search Across Context for relevant global and project memory.");
   lines.push("- During work: use project context before architecture, release, dependency, test, or documentation decisions.");
   lines.push("- Before final response memory write: remember only durable user preferences, project decisions, reusable commands, and compact session summaries.");
+  lines.push("- Low-confidence automatic notes and session summaries should remain pending until reviewed.");
+  lines.push("- Prefer semantic or hybrid search when the user's wording differs from stored memory.");
   lines.push("- Never write secrets, API keys, tokens, credentials, cookies, huge logs, full chat history, temporary errors, private screenshots, or one-off noise.");
   lines.push("- Prefer updating or reusing an existing memory instead of creating duplicate memories.");
   lines.push("");

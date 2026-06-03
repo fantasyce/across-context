@@ -1,11 +1,12 @@
 import { resolve } from "node:path";
 import { exportContext, renderContextDocument } from "./exporters.js";
 import { learnProject } from "./project.js";
+import { renderAgentCard } from "./agent-card.js";
 
 export function createContextMcpServerDefinition(vault) {
   return {
     name: "across-context",
-    version: "0.1.0",
+    version: "0.2.0",
     tools: [
       {
         name: "remember_context",
@@ -17,7 +18,9 @@ export function createContextMcpServerDefinition(vault) {
             scope: { type: "string", enum: ["global", "project"], default: "global" },
             type: { type: "string", enum: ["preference", "decision", "note", "command", "session"], default: "note" },
             projectRoot: { type: "string" },
-            tags: { type: "array", items: { type: "string" } }
+            tags: { type: "array", items: { type: "string" } },
+            auto: { type: "boolean", default: true },
+            visibility: { type: "string", enum: ["private", "team"], default: "private" }
           },
           required: ["text"]
         },
@@ -28,9 +31,11 @@ export function createContextMcpServerDefinition(vault) {
             type: args.type || "note",
             projectRoot: args.projectRoot,
             tags: args.tags || [],
+            auto: args.auto !== false,
+            visibility: args.visibility,
             source: "mcp"
           });
-          return textResult(`Remembered ${entry.scope} ${entry.type}: ${entry.text}`);
+          return textResult(`Remembered ${entry.status} ${entry.scope} ${entry.type}: ${entry.text}`);
         }
       },
       {
@@ -41,7 +46,9 @@ export function createContextMcpServerDefinition(vault) {
           properties: {
             query: { type: "string" },
             projectRoot: { type: "string" },
-            limit: { type: "number", default: 10 }
+            limit: { type: "number", default: 10 },
+            mode: { type: "string", enum: ["keyword", "semantic", "hybrid"], default: "hybrid" },
+            status: { type: "string", enum: ["pending", "active", "pinned", "archived", "expired"] }
           },
           required: ["query"]
         },
@@ -50,6 +57,8 @@ export function createContextMcpServerDefinition(vault) {
             query: args.query,
             projectRoot: args.projectRoot,
             limit: args.limit || 10,
+            mode: args.mode || "hybrid",
+            status: args.status,
             includeGlobal: true
           });
           return textResult(results.map((result) => `- ${result.entry.text}`).join("\n") || "No matching context found.");
@@ -72,6 +81,48 @@ export function createContextMcpServerDefinition(vault) {
           const document = await renderContextDocument(vault, { projectRoot, target: "agents" });
           return textResult(document);
         }
+      },
+      {
+        name: "review_pending_memories",
+        description: "List automatic memory writes that are pending user review.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            projectRoot: { type: "string" }
+          }
+        },
+        handler: async (args) => {
+          const memories = await vault.listMemories({
+            projectRoot: args.projectRoot,
+            includeGlobal: true,
+            status: "pending"
+          });
+          return textResult(memories.map((entry) => `- ${entry.id}: ${entry.text}`).join("\n") || "No pending memories.");
+        }
+      },
+      {
+        name: "approve_memory",
+        description: "Approve a pending memory by id so agents can use it as active context.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            id: { type: "string" }
+          },
+          required: ["id"]
+        },
+        handler: async (args) => {
+          const entry = await vault.updateStatus(args.id, "active");
+          return textResult(`Approved ${entry.id}: ${entry.text}`);
+        }
+      },
+      {
+        name: "get_agent_card",
+        description: "Return the Across Context agent card for A2A-style discovery.",
+        inputSchema: {
+          type: "object",
+          properties: {}
+        },
+        handler: async () => textResult(JSON.stringify(await renderAgentCard(vault), null, 2))
       },
       {
         name: "export_agent_instructions",
