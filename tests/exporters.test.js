@@ -37,6 +37,9 @@ test("renderContextDocument renders an AGENTS.md compatible context document", a
   assert.match(document, /# Agent Context/);
   assert.match(document, /Prefer small commits with tests/);
   assert.match(document, /Do not rewrite the native shell/);
+  assert.match(document, /MCP resources and prompts/i);
+  assert.match(document, /Search explanations/i);
+  assert.match(document, /pending review/i);
   assert.doesNotMatch(document, new RegExp(projectRoot.replaceAll("/", "\\/")));
 });
 

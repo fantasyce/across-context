@@ -79,6 +79,43 @@ test("ContextVault stores automatic low-confidence memories as pending and appro
   assert.equal((await vault.listMemories({ status: "active" })).length, 1);
 });
 
+test("ContextVault updates multiple memory statuses in one call", async () => {
+  const vault = await tempVault();
+  const first = await vault.remember({
+    scope: "global",
+    type: "note",
+    text: "Review first.",
+    auto: true
+  });
+  const second = await vault.remember({
+    scope: "global",
+    type: "note",
+    text: "Review second.",
+    auto: true
+  });
+
+  const result = await vault.updateStatuses([first.id, second.id], "archived");
+
+  assert.equal(result.updated.length, 2);
+  assert.deepEqual(result.missing, []);
+  assert.equal((await vault.listMemories({ status: "archived" })).length, 2);
+});
+
+test("ContextVault reports missing ids during batch status updates", async () => {
+  const vault = await tempVault();
+  const entry = await vault.remember({
+    scope: "global",
+    type: "note",
+    text: "Review one present memory.",
+    auto: true
+  });
+
+  const result = await vault.updateStatuses([entry.id, "mem_missing"], "active");
+
+  assert.equal(result.updated.length, 1);
+  assert.deepEqual(result.missing, ["mem_missing"]);
+});
+
 test("ContextVault archives and exports team-safe project memories", async () => {
   const vault = await tempVault();
   const projectRoot = join(vault.home, "team-project");

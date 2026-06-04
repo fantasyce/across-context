@@ -111,6 +111,8 @@ export class ContextVault {
     return memories
       .filter((entry) => !options.status || (entry.status || "active") === options.status)
       .filter((entry) => !options.visibility || (entry.visibility || "private") === options.visibility)
+      .filter((entry) => !options.type || entry.type === options.type)
+      .filter((entry) => !options.scope || entry.scope === options.scope)
       .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
   }
 
@@ -173,6 +175,42 @@ export class ContextVault {
     throw new Error(`Memory not found: ${targetId}`);
   }
 
+  async updateStatuses(ids, status) {
+    await this.init();
+    const nextStatus = normalizeStatus(status);
+    const targetIds = [...new Set((ids || []).map((id) => String(id || "").trim()).filter(Boolean))];
+    if (!targetIds.length) {
+      throw new Error("At least one memory id is required");
+    }
+
+    const targets = new Set(targetIds);
+    const updated = [];
+    for (const file of await this.#memoryFiles()) {
+      const memories = await readJsonl(file);
+      let changed = false;
+      for (let index = 0; index < memories.length; index += 1) {
+        if (!targets.has(memories[index].id)) continue;
+        const entry = {
+          ...memories[index],
+          status: nextStatus,
+          updatedAt: nowIso()
+        };
+        memories[index] = entry;
+        targets.delete(entry.id);
+        updated.push(entry);
+        changed = true;
+      }
+      if (changed) {
+        await writeJsonl(file, memories);
+      }
+    }
+
+    return {
+      updated,
+      missing: targetIds.filter((id) => targets.has(id))
+    };
+  }
+
   async exportTeamMemory(options = {}) {
     const memories = await this.listMemories({
       projectRoot: options.projectRoot,
@@ -213,19 +251,22 @@ export class ContextVault {
 
   async search(input) {
     const query = String(input.query || "").trim();
-    if (!query) {
+    if (!query && !input.allowEmptyQuery) {
       return [];
     }
     const memories = await this.listMemories({
       projectRoot: input.projectRoot,
       includeGlobal: input.includeGlobal !== false,
       status: input.status,
-      visibility: input.visibility
+      visibility: input.visibility,
+      type: input.type,
+      scope: input.scope
     });
     return searchEntries(memories, {
       query,
       mode: input.mode || "keyword",
-      limit: input.limit || 20
+      limit: input.limit || 20,
+      allowEmptyQuery: Boolean(input.allowEmptyQuery)
     });
   }
 

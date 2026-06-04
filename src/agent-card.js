@@ -1,7 +1,7 @@
 export async function renderAgentCard(vault) {
   return {
     name: "Across Context",
-    version: "0.2.0",
+    version: "0.3.0",
     description: "Local-first shared memory provider for coding agents.",
     url: "https://github.com/fantasyce/across-context",
     capabilities: {
@@ -21,6 +21,35 @@ export async function renderAgentCard(vault) {
         command: "across-context",
         args: ["dashboard"]
       }
+    },
+    protocols: {
+      mcp: {
+        transport: "stdio",
+        command: "across-context",
+        args: ["mcp"],
+        tools: true,
+        resources: true,
+        prompts: true
+      },
+      a2a: {
+        discoveryReady: true,
+        role: "memory-context-provider",
+        complementsMcp: true
+      }
+    },
+    governance: {
+      pendingApproval: true,
+      lifecycle: ["pending", "active", "pinned", "archived", "expired"],
+      localFirst: true,
+      rejectsSecrets: true,
+      teamVisibility: true
+    },
+    memory: {
+      storage: "local-jsonl",
+      types: ["preference", "decision", "note", "command", "session"],
+      scopes: ["global", "project"],
+      retrievalModes: ["keyword", "semantic", "hybrid"],
+      explanations: true
     },
     vault: {
       storage: "local-jsonl",

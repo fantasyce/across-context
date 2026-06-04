@@ -67,13 +67,20 @@ test("CLI reviews pending memories, exports agent card, and runs hooks", async (
   const approved = await exec("node", [cli, "approve", pendingMemories[0].id], { env });
   await exec("node", [cli, "remember", "Use deterministic task-start hooks.", "--scope", "project", "--project", project, "--type", "command", "--visibility", "team"], { env });
   const semantic = await exec("node", [cli, "search", "agent bootstrap context", "--mode", "semantic", "--project", project], { env });
+  const explained = await exec("node", [cli, "search", "bootstrap", "--mode", "hybrid", "--project", project, "--json", "--explain"], { env });
   const card = await exec("node", [cli, "agent-card", "--json"], { env });
   const team = await exec("node", [cli, "team", "export", "--project", project], { env });
   const hook = await exec("node", [cli, "hook", "task-start", "--query", "bootstrap", "--project", project], { env });
+  await exec("node", [cli, "remember", "Maybe remember a second review item.", "--auto"], { env });
+  const allPending = JSON.parse((await exec("node", [cli, "pending", "--json"], { env })).stdout);
+  const batch = await exec("node", [cli, "update-status", "archived", allPending[0].id], { env });
 
   assert.match(approved.stdout, /active/);
   assert.match(semantic.stdout, /deterministic task-start/);
+  assert.ok(JSON.parse(explained.stdout).results[0].explanation.matchedTerms.length > 0);
   assert.equal(JSON.parse(card.stdout).capabilities.memory, true);
   assert.match(team.stdout, /deterministic task-start/);
   assert.match(hook.stdout, /deterministic task-start/);
+  assert.equal(allPending.length, 1);
+  assert.match(batch.stdout, /updated: 1/);
 });

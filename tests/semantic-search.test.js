@@ -58,3 +58,44 @@ test("hybrid search ranks exact matches above semantic-only matches", async () =
   assert.equal(results[0].matchMode, "hybrid");
 });
 
+test("hybrid search returns score explanations and matched fields", async () => {
+  const vault = await tempVault();
+  await vault.remember({
+    scope: "global",
+    type: "command",
+    text: "Run npm test before publishing v0.3.",
+    tags: ["release", "verification"]
+  });
+
+  const [result] = await vault.search({
+    query: "release verification",
+    mode: "hybrid",
+    includeGlobal: true
+  });
+
+  assert.equal(result.matchMode, "hybrid");
+  assert.ok(result.explanation.scoreComponents.exact > 0);
+  assert.ok(result.explanation.matchedFields.includes("tags"));
+  assert.ok(result.explanation.matchedTerms.includes("release"));
+});
+
+test("dashboard search can return recent filtered memories without a query", async () => {
+  const vault = await tempVault();
+  await vault.remember({ scope: "global", type: "note", text: "Old note." });
+  const newest = await vault.remember({
+    scope: "global",
+    type: "decision",
+    text: "Newest decision."
+  });
+
+  const results = await vault.search({
+    query: "",
+    mode: "hybrid",
+    includeGlobal: true,
+    allowEmptyQuery: true,
+    type: "decision"
+  });
+
+  assert.equal(results[0].entry.id, newest.id);
+  assert.equal(results[0].explanation.reason, "recent");
+});

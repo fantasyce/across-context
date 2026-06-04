@@ -6,7 +6,58 @@ import { renderAgentCard } from "./agent-card.js";
 export function createContextMcpServerDefinition(vault) {
   return {
     name: "across-context",
-    version: "0.2.0",
+    version: "0.3.0",
+    resources: [
+      {
+        uri: "across-context://agent-card",
+        name: "Agent Card",
+        description: "A2A-style public metadata for Across Context.",
+        mimeType: "application/json"
+      },
+      {
+        uri: "across-context://stats",
+        name: "Vault Stats",
+        description: "Counts and lifecycle summary for local memory.",
+        mimeType: "application/json"
+      },
+      {
+        uri: "across-context://memories",
+        name: "Memories",
+        description: "Global and project memories visible to the current request.",
+        mimeType: "application/json"
+      },
+      {
+        uri: "across-context://project-context",
+        name: "Project Context",
+        description: "Generated AGENTS.md-style project context.",
+        mimeType: "text/markdown"
+      }
+    ],
+    prompts: [
+      {
+        name: "task-start-context",
+        description: "Retrieve relevant Across Context memory before planning or editing.",
+        arguments: [
+          { name: "query", description: "Task or topic to search for.", required: false },
+          { name: "projectRoot", description: "Project root for project memory.", required: false }
+        ]
+      },
+      {
+        name: "task-end-summary",
+        description: "Store a compact pending session summary after durable work.",
+        arguments: [
+          { name: "summary", description: "Compact handoff summary.", required: true },
+          { name: "projectRoot", description: "Project root for project memory.", required: false }
+        ]
+      },
+      {
+        name: "memory-review",
+        description: "Review pending automatic memories before activating them.",
+        arguments: [
+          { name: "projectRoot", description: "Project root for pending project memory.", required: false }
+        ]
+      }
+    ],
     tools: [
       {
         name: "remember_context",
@@ -61,7 +112,10 @@ export function createContextMcpServerDefinition(vault) {
             status: args.status,
             includeGlobal: true
           });
-          return textResult(results.map((result) => `- ${result.entry.text}`).join("\n") || "No matching context found.");
+          return textResult(
+            results.map((result) => `- ${result.entry.text}`).join("\n") || "No matching context found.",
+            { results }
+          );
         }
       },
       {
@@ -143,12 +197,100 @@ export function createContextMcpServerDefinition(vault) {
           return textResult(`Exported ${result.target} context to ${result.path}`);
         }
       }
+    ],
+    readResource: async (uri, args = {}) => readResource(vault, uri, args),
+    getPrompt: async (name, args = {}) => getPrompt(vault, name, args)
+  };
+}
+
+async function readResource(vault, uri, args = {}) {
+  if (uri === "across-context://agent-card") {
+    return resourceResult(uri, "application/json", JSON.stringify(await renderAgentCard(vault), null, 2));
+  }
+  if (uri === "across-context://stats") {
+    const stats = await vault.stats({ projectRoot: args.projectRoot });
+    return resourceResult(uri, "application/json", JSON.stringify(stats, null, 2));
+  }
+  if (uri === "across-context://memories") {
+    const memories = await vault.listMemories({
+      projectRoot: args.projectRoot,
+      includeGlobal: true,
+      status: args.status,
+      visibility: args.visibility
+    });
+    return resourceResult(uri, "application/json", JSON.stringify({ memories }, null, 2));
+  }
+  if (uri === "across-context://project-context") {
+    const projectRoot = resolve(args.projectRoot || process.cwd());
+    const document = await renderContextDocument(vault, { projectRoot, target: "agents" });
+    return resourceResult(uri, "text/markdown", document);
+  }
+  throw new Error(`Unknown resource: ${uri}`);
+}
+
+async function getPrompt(vault, name, args = {}) {
+  if (name === "task-start-context") {
+    const query = args.query || "project context";
+    return promptResult(
+      name,
+      "Search Across Context before planning or editing.",
+      `Search Across Context for relevant active memory using query "${query}". Prefer hybrid search, include global and project memory when projectRoot is available, and use the results before making architecture, dependency, testing, release, or documentation decisions.`
+    );
+  }
+  if (name === "task-end-summary") {
+    const summary = args.summary || "<compact durable session summary>";
+    return promptResult(
+      name,
+      "Store a compact pending session summary.",
+      `Remember this session summary through Across Context as a project session memory when projectRoot is available, otherwise as global memory. Keep it compact and pending for review: ${summary}`
+    );
+  }
+  if (name === "memory-review") {
+    const memories = await vault.listMemories({
+      projectRoot: args.projectRoot,
+      includeGlobal: true,
+      status: "pending"
+    });
+    const pending = memories.map((entry) => `- ${entry.id}: ${entry.text}`).join("\n") || "No pending memories.";
+    return promptResult(
+      name,
+      "Review pending memories.",
+      `Review pending memories and approve only durable, non-secret context.\n\n${pending}`
+    );
+  }
+  throw new Error(`Unknown prompt: ${name}`);
+}
+
+function resourceResult(uri, mimeType, text) {
+  return {
+    contents: [
+      {
+        uri,
+        mimeType,
+        text
+      }
     ]
   };
 }
 
-export function textResult(text) {
+function promptResult(name, description, text) {
   return {
+    description,
+    messages: [
+      {
+        role: "user",
+        content: {
+          type: "text",
+          text
+        }
+      }
+    ],
+    name
+  };
+}
+
+export function textResult(text, structuredContent) {
+  const result = {
     content: [
       {
         type: "text",
@@ -156,4 +298,8 @@ export function textResult(text) {
       }
     ]
   };
+  if (structuredContent) {
+    result.structuredContent = structuredContent;
+  }
+  return result;
 }

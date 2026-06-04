@@ -52,6 +52,12 @@ async function main(argv) {
       mode: parsed.mode || "keyword",
       status: parsed.status
     });
+    if (parsed.json) {
+      console.log(JSON.stringify({
+        results: results.map((result) => parsed.explain ? result : omitExplanation(result))
+      }, null, 2));
+      return;
+    }
     if (!results.length) {
       console.log("No matching context found.");
       return;
@@ -88,6 +94,21 @@ async function main(argv) {
     const status = command === "approve" ? "active" : command === "archive" ? "archived" : "expired";
     const entry = await vault.updateStatus(parsed.positionals[0], status);
     console.log(`${entry.id}: ${entry.status}`);
+    return;
+  }
+
+  if (command === "update-status") {
+    const parsed = parseArgs(rest);
+    const [status, ...ids] = parsed.positionals;
+    const result = await vault.updateStatuses(ids, status);
+    if (parsed.json) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+    console.log(`updated: ${result.updated.length}`);
+    if (result.missing.length) {
+      console.log(`missing: ${result.missing.join(", ")}`);
+    }
     return;
   }
 
@@ -301,11 +322,13 @@ Commands:
   remember <text> [--scope global|project] [--type preference|decision|note|command|session] [--project path]
   search <query> [--project path] [--mode keyword|semantic|hybrid]
                                         Search global and project context
+  search <query> --json [--explain]     Print structured search results
   list [--project path] [--json]        List stored memories
   pending [--project path] [--json]     List pending automatic memories
   approve <memory-id>                   Approve a pending memory
   archive <memory-id>                   Archive a memory
   expire <memory-id>                    Mark a memory expired
+  update-status <status> <memory-id...> Batch update memory lifecycle status
   forget <memory-id>                    Remove a memory by id
   stats [--project path]                Show memory counts
   compact [--project path]              Remove duplicate records from the vault
@@ -383,6 +406,11 @@ function formatCounts(counts) {
   const entries = Object.entries(counts || {});
   if (!entries.length) return "none";
   return entries.map(([key, value]) => `${key}=${value}`).join(", ");
+}
+
+function omitExplanation(result) {
+  const { explanation, ...rest } = result;
+  return rest;
 }
 
 main(process.argv.slice(2)).catch((error) => {

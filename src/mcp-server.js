@@ -42,7 +42,13 @@ async function handleMessage(message) {
     return {
       protocolVersion: message.params?.protocolVersion || "2024-11-05",
       capabilities: {
-        tools: {}
+        tools: {},
+        resources: {
+          listChanged: false
+        },
+        prompts: {
+          listChanged: false
+        }
       },
       serverInfo: {
         name: definition.name,
@@ -58,6 +64,31 @@ async function handleMessage(message) {
         inputSchema
       }))
     };
+  }
+  if (message.method === "resources/list") {
+    return {
+      resources: definition.resources.map(({ uri, name, description, mimeType }) => ({
+        uri,
+        name,
+        description,
+        mimeType
+      }))
+    };
+  }
+  if (message.method === "resources/read") {
+    return definition.readResource(message.params?.uri, message.params || {});
+  }
+  if (message.method === "prompts/list") {
+    return {
+      prompts: definition.prompts.map(({ name, description, arguments: promptArguments }) => ({
+        name,
+        description,
+        arguments: promptArguments || []
+      }))
+    };
+  }
+  if (message.method === "prompts/get") {
+    return definition.getPrompt(message.params?.name, message.params?.arguments || {});
   }
   if (message.method === "tools/call") {
     const tool = definition.tools.find((item) => item.name === message.params?.name);

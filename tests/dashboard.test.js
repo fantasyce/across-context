@@ -46,3 +46,77 @@ test("dashboard app exposes JSON memories API", async () => {
   assert.match(payload.memories[0].text, /dashboard review/);
 });
 
+test("dashboard app searches memories with explanations", async () => {
+  const vault = await tempVault();
+  await vault.remember({
+    scope: "global",
+    type: "command",
+    text: "Run release verification.",
+    tags: ["release"]
+  });
+  const app = createDashboardApp(vault);
+
+  const response = await app.handle({
+    method: "GET",
+    url: "/api/search?q=release&mode=hybrid&explain=1"
+  });
+  const payload = JSON.parse(response.body);
+
+  assert.equal(response.statusCode, 200);
+  assert.ok(payload.results[0].explanation.matchedTerms.includes("release"));
+});
+
+test("dashboard app updates memory status through POST", async () => {
+  const vault = await tempVault();
+  const entry = await vault.remember({
+    scope: "global",
+    type: "note",
+    text: "Needs review.",
+    auto: true
+  });
+  const app = createDashboardApp(vault);
+
+  const response = await app.handle({
+    method: "POST",
+    url: `/api/memories/${entry.id}/status`,
+    body: JSON.stringify({ status: "active" })
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(JSON.parse(response.body).entry.status, "active");
+});
+
+test("dashboard app forgets memories through POST", async () => {
+  const vault = await tempVault();
+  const entry = await vault.remember({
+    scope: "global",
+    type: "note",
+    text: "Forget from dashboard."
+  });
+  const app = createDashboardApp(vault);
+
+  const response = await app.handle({
+    method: "POST",
+    url: `/api/memories/${entry.id}/forget`
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(JSON.parse(response.body).forgotten, 1);
+});
+
+test("renderDashboardHtml includes search filters and lifecycle actions", async () => {
+  const vault = await tempVault();
+  await vault.remember({
+    scope: "global",
+    type: "note",
+    text: "Review through dashboard.",
+    auto: true
+  });
+
+  const html = await renderDashboardHtml(vault);
+
+  assert.match(html, /id="memory-search"/);
+  assert.match(html, /data-action="active"/);
+  assert.match(html, /data-action="archived"/);
+  assert.match(html, /data-action="forget"/);
+});

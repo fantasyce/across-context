@@ -39,7 +39,7 @@ Use it when you want agents to remember:
 - Generates `AGENTS.md`, `CLAUDE.md`, and Cursor rules
 - Adds behavior rules so agents know when to read and write memory
 - Protects the vault with a memory policy engine
-- Provides a local dashboard, semantic search, pending approval, lifecycle controls, team export, and deterministic hooks
+- Provides a local dashboard, explainable hybrid search, pending approval, lifecycle controls, MCP resources and prompts, team export, and deterministic hooks
 
 ### How It Works
 
@@ -47,19 +47,20 @@ Use it when you want agents to remember:
 
 Across Context has three layers:
 
-1. **MCP tools** give agents the ability to search and write memory.
-2. **Generated rules** teach agents when to use those tools.
+1. **MCP tools, resources, and prompts** give agents the ability to search, write, inspect, and reuse memory workflows.
+2. **Generated rules** teach agents when to use those capabilities.
 3. **Memory policy** rejects unsafe or low-value writes before they reach disk.
 
 This is the important product idea: MCP alone is not enough. Agents also need
 operating instructions, and automatic memory needs guardrails.
 
-### New in v0.2
+### New in v0.3
 
-- Local dashboard: `across-context dashboard`
-- Semantic and hybrid search: `across-context search "agent handoff" --mode semantic`
-- Pending memory review: `pending`, `approve`, `archive`, and `expire`
-- Agent Card for A2A-style discovery: `across-context agent-card --json`
+- MCP resources and prompts for discoverable memory context and repeatable agent workflows
+- Explainable hybrid search: `across-context search "agent handoff" --mode hybrid --json --explain`
+- Dashboard review actions for approving, archiving, expiring, forgetting, searching, and filtering memories
+- Batch lifecycle updates: `across-context update-status active <memory-id...>`
+- A2A-ready Agent Card metadata: `across-context agent-card --json`
 - Team-safe project export: `across-context team export --project .`
 - Deterministic hooks: `hook task-start` and `hook task-end`
 
@@ -80,7 +81,7 @@ Or install from a local release tarball:
 
 ```bash
 npm pack
-npm install -g ./across-context-0.2.0.tgz
+npm install -g ./across-context-0.3.0.tgz
 ```
 
 Verify:
@@ -146,7 +147,8 @@ across-context dashboard
 ![Across Context dashboard](docs/assets/across-context-dashboard.png)
 
 The dashboard runs on `127.0.0.1` by default and shows memory counts, pending
-review items, lifecycle status, visibility, and stored text.
+review items, lifecycle status, visibility, stored text, search explanations,
+and local lifecycle actions.
 
 ### Memory Policy
 
@@ -181,10 +183,13 @@ across-context remember "Prefer small commits with tests." --type preference
 across-context remember "Run npm test before final answers." --scope project --project . --type command
 across-context search "tests before final" --project .
 across-context search "agent handoff context" --mode semantic --project .
+across-context search "release verification" --mode hybrid --json --explain
 across-context list
 across-context pending
 across-context approve <memory-id>
 across-context archive <memory-id>
+across-context expire <memory-id>
+across-context update-status active <memory-id...>
 across-context stats
 across-context compact
 across-context forget <memory-id>
@@ -196,9 +201,9 @@ across-context hook task-end --summary "Implemented dashboard and semantic searc
 across-context mcp
 ```
 
-### MCP Tools
+### MCP Server
 
-The MCP server exposes:
+The MCP server exposes tools:
 
 - `remember_context`
 - `search_context`
@@ -207,6 +212,19 @@ The MCP server exposes:
 - `get_project_context`
 - `get_agent_card`
 - `export_agent_instructions`
+
+It also exposes resources:
+
+- `across-context://agent-card`
+- `across-context://stats`
+- `across-context://memories`
+- `across-context://project-context`
+
+And prompts:
+
+- `task-start-context`
+- `task-end-summary`
+- `memory-review`
 
 Start it manually:
 
@@ -298,12 +316,13 @@ across-context setup --all --yes
 - 生成 Cursor MCP 配置和规则
 - 注入自动读写记忆的行为规则
 
-### v0.2 新能力
+### v0.3 新能力
 
-- 本地 Dashboard：`across-context dashboard`
-- 语义/混合搜索：`across-context search "agent handoff" --mode semantic`
-- 待审批记忆：`pending`、`approve`、`archive`、`expire`
-- A2A 风格 Agent Card：`across-context agent-card --json`
+- MCP resources 和 prompts：让 Agent 可发现地读取上下文并复用标准记忆工作流
+- 可解释混合搜索：`across-context search "agent handoff" --mode hybrid --json --explain`
+- Dashboard 审查操作：搜索、过滤、审批、归档、过期和删除记忆
+- 批量生命周期更新：`across-context update-status active <memory-id...>`
+- A2A-ready Agent Card 元数据：`across-context agent-card --json`
 - 团队安全导出：`across-context team export --project .`
 - 确定性 hooks：`hook task-start` 和 `hook task-end`
 
@@ -351,7 +370,7 @@ across-context dashboard
 
 ![Across Context dashboard](docs/assets/across-context-dashboard.png)
 
-它默认运行在 `127.0.0.1`，可以查看记忆数量、待审批项、生命周期状态、可见性和记忆内容。
+它默认运行在 `127.0.0.1`，可以查看记忆数量、待审批项、生命周期状态、可见性、记忆内容、搜索解释，并执行本地生命周期操作。
 
 ### 记忆治理
 
@@ -386,10 +405,13 @@ across-context remember "Prefer small commits with tests." --type preference
 across-context remember "Run npm test before final answers." --scope project --project . --type command
 across-context search "tests before final" --project .
 across-context search "agent handoff context" --mode semantic --project .
+across-context search "release verification" --mode hybrid --json --explain
 across-context list
 across-context pending
 across-context approve <memory-id>
 across-context archive <memory-id>
+across-context expire <memory-id>
+across-context update-status active <memory-id...>
 across-context stats
 across-context compact
 across-context forget <memory-id>
@@ -400,6 +422,31 @@ across-context hook task-start --query "release workflow" --project .
 across-context hook task-end --summary "Implemented dashboard and semantic search." --project .
 across-context mcp
 ```
+
+### MCP Server
+
+MCP Server 暴露工具：
+
+- `remember_context`
+- `search_context`
+- `review_pending_memories`
+- `approve_memory`
+- `get_project_context`
+- `get_agent_card`
+- `export_agent_instructions`
+
+同时暴露 resources：
+
+- `across-context://agent-card`
+- `across-context://stats`
+- `across-context://memories`
+- `across-context://project-context`
+
+以及 prompts：
+
+- `task-start-context`
+- `task-end-summary`
+- `memory-review`
 
 ### 隐私模型
 

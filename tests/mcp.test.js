@@ -32,3 +32,24 @@ test("MCP server definition exposes memory tools backed by the vault", async () 
 
   assert.match(JSON.stringify(result), /Prefer readable diffs/);
 });
+
+test("MCP server definition exposes resources and prompts", async () => {
+  const home = await mkdtemp(join(tmpdir(), "across-context-mcp-surfaces-"));
+  const vault = new ContextVault({ home });
+  await vault.remember({
+    scope: "global",
+    type: "preference",
+    text: "Prefer explainable memory search."
+  });
+  const definition = createContextMcpServerDefinition(vault);
+
+  assert.ok(definition.resources.some((resource) => resource.uri === "across-context://agent-card"));
+  assert.ok(definition.resources.some((resource) => resource.uri === "across-context://stats"));
+  assert.ok(definition.prompts.some((prompt) => prompt.name === "task-start-context"));
+
+  const resource = await definition.readResource("across-context://stats", {});
+  assert.match(JSON.stringify(resource), /total/);
+
+  const prompt = await definition.getPrompt("memory-review", { projectRoot: home });
+  assert.match(JSON.stringify(prompt), /pending memories/i);
+});
