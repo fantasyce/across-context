@@ -6,7 +6,7 @@ import { renderAgentCard } from "./agent-card.js";
 export function createContextMcpServerDefinition(vault) {
   return {
     name: "across-context",
-    version: "0.3.0",
+    version: "0.4.0",
     resources: [
       {
         uri: "across-context://agent-card",

@@ -1,9 +1,10 @@
-import { appendFile, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { access, appendFile, cp, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { MemoryPolicyEngine, normalizeMemoryText } from "./memory-policy.js";
 import { searchEntries } from "./semantic-search.js";
 import {
   defaultHome,
+  legacyDefaultHome,
   newMemoryId,
   normalizeMemoryType,
   normalizeScope,
@@ -15,11 +16,14 @@ import {
 
 export class ContextVault {
   constructor(options = {}) {
-    this.home = resolve(options.home || defaultHome());
+    this.env = options.env || process.env;
+    this.home = resolve(options.home || defaultHome(this.env));
+    this.shouldMigrateLegacy = !options.home && !this.env.ACROSS_CONTEXT_HOME;
     this.policy = new MemoryPolicyEngine(options.policy || {});
   }
 
   async init() {
+    await this.#migrateLegacyDefaultVault();
     await mkdir(join(this.home, "global"), { recursive: true });
     await mkdir(join(this.home, "projects"), { recursive: true });
     await this.#ensureJsonl(join(this.home, "global", "memories.jsonl"));
@@ -278,6 +282,16 @@ export class ContextVault {
     return profile;
   }
 
+  async #migrateLegacyDefaultVault() {
+    if (!this.shouldMigrateLegacy) return;
+    const legacyHome = legacyDefaultHome(this.env);
+    if (resolve(legacyHome) === resolve(this.home)) return;
+    if (await pathExists(this.home)) return;
+    if (!(await pathExists(legacyHome))) return;
+    await mkdir(dirname(this.home), { recursive: true });
+    await cp(legacyHome, this.home, { recursive: true, force: false });
+  }
+
   async getProjectProfile(projectRoot) {
     const projectId = stableProjectId(resolve(projectRoot));
     const file = join(this.home, "projects", projectId, "profile.json");
@@ -339,6 +353,15 @@ export async function writeJsonl(file, entries) {
   await mkdir(dirname(file), { recursive: true });
   const content = entries.map((entry) => JSON.stringify(dropUndefined(entry))).join("\n");
   await writeFile(file, content ? `${content}\n` : "", "utf8");
+}
+
+async function pathExists(path) {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function dropUndefined(value) {

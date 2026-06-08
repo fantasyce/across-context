@@ -1,9 +1,31 @@
 import { createHash, randomUUID } from "node:crypto";
 import { homedir } from "node:os";
-import { basename, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 
-export function defaultHome() {
-  return process.env.ACROSS_CONTEXT_HOME || resolve(homedir(), ".across-context");
+export const COMPONENT_ID = "across-context";
+
+export function ecosystemHome(env = process.env) {
+  return resolve(env.ACROSS_HOME || join(homedir(), ".across"));
+}
+
+export function componentDataHome(componentId = COMPONENT_ID, env = process.env) {
+  return resolve(ecosystemHome(env), "data", componentId);
+}
+
+export function pluginRoot(env = process.env) {
+  return resolve(env.ACROSS_PLUGIN_HOME || join(ecosystemHome(env), "plugins"));
+}
+
+export function ecosystemBinDir(env = process.env) {
+  return resolve(env.ACROSS_BIN_HOME || join(ecosystemHome(env), "bin"));
+}
+
+export function defaultHome(env = process.env) {
+  return resolve(env.ACROSS_CONTEXT_HOME || componentDataHome(COMPONENT_ID, env));
+}
+
+export function legacyDefaultHome(env = process.env) {
+  return resolve(env.HOME || homedir(), ".across-context");
 }
 
 export function nowIso() {

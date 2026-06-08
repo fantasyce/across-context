@@ -11,7 +11,8 @@ tokens, credentials, or private user data.
 
 ## Local-First Model
 
-Across Context stores memory locally by default under `~/.across-context`.
+Across Context stores memory locally by default under
+`~/.across/data/across-context`.
 The package does not provide cloud sync and does not send vault contents to a
 hosted service.
 
@@ -27,4 +28,3 @@ Users and contributors should still avoid storing:
 - credentials
 - private screenshots
 - large logs with personal or production data
-

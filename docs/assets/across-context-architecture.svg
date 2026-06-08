@@ -26,7 +26,7 @@
   <rect x="460" y="250" width="360" height="190" rx="24" fill="url(#card)" stroke="#38BDF8" stroke-width="2"/>
   <rect x="522" y="285" width="236" height="84" rx="18" fill="#111827" stroke="#5EEAD4" stroke-width="2"/>
   <text x="640" y="320" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="24" font-weight="700" fill="#F8FAFC">Local Vault</text>
-  <text x="640" y="352" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="16" fill="#A7F3D0">~/.across-context</text>
+  <text x="640" y="352" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="16" fill="#A7F3D0">~/.across/data/across-context</text>
   <text x="640" y="404" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="17" fill="#CBD5E1">preferences · decisions · commands · sessions</text>
 
   <g filter="url(#glow)" stroke="url(#accent)" stroke-width="4" stroke-linecap="round">

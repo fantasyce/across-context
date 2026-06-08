@@ -1,4 +1,4 @@
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -24,6 +24,33 @@ test("ContextVault stores global memories in append-only jsonl", async () => {
   assert.equal(entry.scope, "global");
   const raw = await readFile(join(vault.home, "global", "memories.jsonl"), "utf8");
   assert.match(raw, /Prefer pnpm over npm/);
+});
+
+test("ContextVault migrates legacy default vault into ACROSS_HOME data namespace", async () => {
+  const home = await mkdtemp(join(tmpdir(), "across-context-legacy-home-"));
+  const acrossHome = await mkdtemp(join(tmpdir(), "across-home-"));
+  const legacyGlobal = join(home, ".across-context", "global");
+  await mkdir(legacyGlobal, { recursive: true });
+  await writeFile(
+    join(legacyGlobal, "memories.jsonl"),
+    `${JSON.stringify({
+      id: "mem_legacy",
+      scope: "global",
+      type: "preference",
+      text: "Legacy shared memory should migrate.",
+      tags: [],
+      status: "active",
+      createdAt: "2026-06-09T00:00:00.000Z",
+      updatedAt: "2026-06-09T00:00:00.000Z"
+    })}\n`,
+    "utf8"
+  );
+
+  const vault = new ContextVault({ env: { HOME: home, ACROSS_HOME: acrossHome } });
+  const memories = await vault.listMemories();
+
+  assert.equal(vault.home, join(acrossHome, "data", "across-context"));
+  assert.equal(memories[0].text, "Legacy shared memory should migrate.");
 });
 
 test("ContextVault stores project memories with a stable project id", async () => {

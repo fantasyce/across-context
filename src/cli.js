@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { ContextVault } from "./vault.js";
 import { learnProject } from "./project.js";
 import { exportContext, renderContextDocument } from "./exporters.js";
-import { installAgent } from "./installers.js";
+import { installAgent, installHostPlugin } from "./installers.js";
 import { doctorAcrossContext, setupAcrossContext, statusAcrossContext } from "./setup.js";
 import { renderAgentCard } from "./agent-card.js";
 import { runHook } from "./hooks.js";
@@ -215,9 +215,20 @@ async function main(argv) {
   if (command === "install") {
     const [target, ...installRest] = rest;
     if (!target) {
-      throw new Error("Usage: across-context install <codex|cursor|claude-code> [--project path] [--stdout]");
+      throw new Error("Usage: across-context install <codex|cursor|claude-code|host-plugin> [--project path] [--stdout] [--across-home path]");
     }
     const parsed = parseArgs(installRest);
+    if (target === "host-plugin") {
+      const result = await installHostPlugin({
+        acrossHome: parsed["across-home"],
+        pluginRoot: parsed["plugin-root"],
+        binDir: parsed["bin-dir"],
+        prefix: parsed.prefix
+      });
+      console.log(`Installed host plugin command at ${result.commandPath}`);
+      console.log(`runtime: ${result.installDir}`);
+      return;
+    }
     const projectRoot = parsed.project ? resolve(parsed.project) : process.cwd();
     if (target === "codex" || target === "cursor") {
       await ensureProfile(projectRoot);
@@ -339,6 +350,8 @@ Commands:
   project learn [path]                  Learn project commands and metadata
   export <agents|claude|cursor|markdown> [--project path] [--stdout]
   install <codex|cursor|claude-code> [--project path] [--stdout]
+  install host-plugin [--across-home path]
+                                        Install runtime for host apps under ~/.across
   setup [--all] [--yes] [--no-external] [--project path]
   doctor [--project path]               Verify vault, project files, and local agent availability
   status [--project path]               Show vault and agent summary

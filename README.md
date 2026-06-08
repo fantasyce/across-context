@@ -32,7 +32,7 @@ Use it when you want agents to remember:
 
 ### What It Does
 
-- Creates a local vault at `~/.across-context`
+- Creates a local vault at `~/.across/data/across-context`
 - Runs a stdio MCP server with memory tools
 - Detects supported local agents
 - Registers MCP integrations where each agent supports it
@@ -81,7 +81,7 @@ Or install from a local release tarball:
 
 ```bash
 npm pack
-npm install -g ./across-context-0.3.0.tgz
+npm install -g ./across-context-0.4.0.tgz
 ```
 
 Verify:
@@ -89,6 +89,19 @@ Verify:
 ```bash
 across-context --help
 ```
+
+For host apps such as Across Agents Assistant, install a local plugin runtime
+under the user's hidden plugin directory:
+
+```bash
+across-context install host-plugin
+```
+
+This copies the Across Context runtime to `~/.across/plugins/across-context`,
+creates `~/.across/bin/across-context`, and writes the plugin manifest at
+`~/.across/plugins/across-context/manifest.json`. Host apps should discover that
+wrapper instead of pointing at a source checkout, `npm link`, or a path under
+`~/Documents`.
 
 ### Quick Start
 
@@ -198,6 +211,7 @@ across-context agent-card --json
 across-context team export --project .
 across-context hook task-start --query "release workflow" --project .
 across-context hook task-end --summary "Implemented dashboard and semantic search." --project .
+across-context install host-plugin
 across-context mcp
 ```
 
@@ -235,7 +249,7 @@ across-context mcp
 ### Vault Layout
 
 ```text
-~/.across-context/
+~/.across/data/across-context/
   global/
     memories.jsonl
   projects/
@@ -308,7 +322,7 @@ across-context setup --all --yes
 
 它会自动完成：
 
-- 初始化 `~/.across-context`
+- 初始化 `~/.across/data/across-context`
 - 检测本机已安装的 Agent
 - 注册 MCP 服务
 - 生成 `AGENTS.md`
@@ -338,6 +352,18 @@ across-context setup --all --yes --no-external
 across-context doctor
 across-context status
 ```
+
+如果要把 Across Context 作为 Across Agents Assistant 这类宿主应用的插件
+使用，请安装到用户隐藏插件目录：
+
+```bash
+across-context install host-plugin
+```
+
+这个命令会复制运行时到 `~/.across/plugins/across-context`，创建
+`~/.across/bin/across-context`，并写入
+`~/.across/plugins/across-context/manifest.json`。宿主应用应该发现这个
+wrapper，而不是指向源码目录、`npm link` 或 `~/Documents` 下的路径。
 
 ### 支持的 Agent
 
