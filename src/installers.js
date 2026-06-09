@@ -1,13 +1,14 @@
 import { fileURLToPath } from "node:url";
-import { access, chmod, cp, mkdir, readFile, realpath, rm, rename, writeFile } from "node:fs/promises";
+import { access, chmod, cp, mkdir, realpath, rm, rename, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { exportContext } from "./exporters.js";
-import { COMPONENT_ID, componentDataHome, ecosystemBinDir, ecosystemHome, pluginRoot } from "./paths.js";
+import { COMPONENT_ID, ecosystemBinDir, ecosystemHome, pluginRoot } from "./paths.js";
+import { renderPluginManifest } from "./plugin-manifest.js";
 
 const HOST_PLUGIN_PACKAGE_ENTRIES = [
   "src",
   "examples",
-  "docs/assets",
+  "assets/readme",
   "README.md",
   "CONTRIBUTING.md",
   "SECURITY.md",
@@ -90,7 +91,7 @@ export async function installHostPlugin(options = {}) {
   await chmod(commandPath, 0o755);
   await writeFile(
     join(installDir, "manifest.json"),
-    `${JSON.stringify(await renderHostPluginManifest({ acrossHome, commandPath, installDir, sourceRoot }), null, 2)}\n`,
+    `${JSON.stringify(await renderPluginManifest({ acrossHome, commandPath, installDir, sourceRoot }), null, 2)}\n`,
     "utf8"
   );
 
@@ -102,46 +103,6 @@ export async function installHostPlugin(options = {}) {
     binDir,
     commandPath
   };
-}
-
-async function renderHostPluginManifest({ acrossHome, commandPath, installDir, sourceRoot }) {
-  const packageJson = await readPackageJson(sourceRoot);
-  return {
-    schemaVersion: "1.0",
-    id: COMPONENT_ID,
-    displayName: "Across Context",
-    kind: "memory-provider",
-    version: packageJson.version || "0.0.0",
-    entrypoints: {
-      cli: {
-        command: commandPath
-      },
-      mcp: {
-        command: commandPath,
-        args: ["mcp"]
-      },
-      dashboard: {
-        command: commandPath,
-        args: ["dashboard"]
-      }
-    },
-    paths: {
-      data: componentDataHome(COMPONENT_ID, { ACROSS_HOME: acrossHome }),
-      config: join(acrossHome, "config", COMPONENT_ID),
-      run: join(acrossHome, "run", COMPONENT_ID),
-      logs: join(acrossHome, "logs", COMPONENT_ID),
-      cache: join(acrossHome, "cache", COMPONENT_ID),
-      plugin: installDir
-    }
-  };
-}
-
-async function readPackageJson(sourceRoot) {
-  try {
-    return JSON.parse(await readFile(join(sourceRoot, "package.json"), "utf8"));
-  } catch {
-    return {};
-  }
 }
 
 async function copyPackageEntry(sourceRoot, targetRoot, entry) {

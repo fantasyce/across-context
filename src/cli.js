@@ -8,6 +8,7 @@ import { doctorAcrossContext, setupAcrossContext, statusAcrossContext } from "./
 import { renderAgentCard } from "./agent-card.js";
 import { runHook } from "./hooks.js";
 import { startDashboard } from "./dashboard.js";
+import { renderHealth, renderPluginManifest, renderPluginStatus } from "./plugin-manifest.js";
 
 const vault = new ContextVault();
 
@@ -158,6 +159,35 @@ async function main(argv) {
     const parsed = parseArgs(rest);
     const card = await renderAgentCard(vault);
     console.log(parsed.json ? JSON.stringify(card, null, 2) : formatAgentCard(card));
+    return;
+  }
+
+  if (command === "plugin-manifest") {
+    const parsed = parseArgs(rest);
+    const manifest = await renderPluginManifest({
+      acrossHome: parsed["across-home"],
+      pluginRoot: parsed["plugin-root"],
+      binDir: parsed["bin-dir"]
+    });
+    console.log(parsed.json ? JSON.stringify(manifest, null, 2) : formatPluginManifest(manifest));
+    return;
+  }
+
+  if (command === "plugin-status") {
+    const parsed = parseArgs(rest);
+    const status = await renderPluginStatus({
+      acrossHome: parsed["across-home"],
+      pluginRoot: parsed["plugin-root"],
+      binDir: parsed["bin-dir"]
+    });
+    console.log(parsed.json ? JSON.stringify(status, null, 2) : formatPluginStatus(status));
+    return;
+  }
+
+  if (command === "health") {
+    const parsed = parseArgs(rest);
+    const health = await renderHealth(vault, { projectRoot: parsed.project });
+    console.log(parsed.json ? JSON.stringify(health, null, 2) : formatHealth(health));
     return;
   }
 
@@ -344,6 +374,9 @@ Commands:
   stats [--project path]                Show memory counts
   compact [--project path]              Remove duplicate records from the vault
   agent-card [--json]                   Print the Across Context agent card
+  plugin-manifest [--json]              Print the Across plugin manifest
+  plugin-status [--json]                Print host-install and protocol status
+  health [--json]                       Probe vault health without external agent setup
   team export [--project path]          Export team-safe project memory as JSON
   hook task-start --query <text> [--project path]
   hook task-end --summary <text> [--project path]
@@ -412,6 +445,33 @@ function formatAgentCard(card) {
     card.description,
     `MCP: ${card.endpoints.mcp.command} ${card.endpoints.mcp.args.join(" ")}`,
     `Skills: ${card.skills.map((skill) => skill.id).join(", ")}`
+  ].join("\n");
+}
+
+function formatPluginManifest(manifest) {
+  return [
+    `${manifest.displayName} ${manifest.version}`,
+    `id: ${manifest.id}`,
+    `kind: ${manifest.kind}`,
+    `mcp: ${manifest.entrypoints.mcp.command} ${manifest.entrypoints.mcp.args.join(" ")}`
+  ].join("\n");
+}
+
+function formatPluginStatus(status) {
+  return [
+    `plugin: ${status.pluginId}`,
+    `status: ${status.status}`,
+    `command: ${status.commandExists ? "available" : "missing"}`,
+    `manifest: ${status.manifestExists ? status.manifestPath : "missing"}`
+  ].join("\n");
+}
+
+function formatHealth(health) {
+  return [
+    `status: ${health.status}`,
+    `plugin: ${health.pluginId}`,
+    `home: ${health.home}`,
+    `memories: ${health.memories}`
   ].join("\n");
 }
 
