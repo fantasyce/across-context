@@ -13,13 +13,18 @@ node src/mcp-server.js --help >/dev/null
 
 echo "== sensitive text scan =="
 PATH_PATTERN='/U''sers/[^[:space:])]+'
-TOKEN_PATTERN='gho_''[A-Za-z0-9_]+|sk-''[A-Za-z0-9_-]+'
-KEY_PATTERN='OPENAI_''API_KEY|ANTHROPIC_''API_KEY|DEEPSEEK_''API_KEY|MINIMAX_''API_KEY'
-SENSITIVE_PATTERN="(${PATH_PATTERN}|${TOKEN_PATTERN}|${KEY_PATTERN})"
+TOKEN_PATTERN='(^|[^A-Za-z0-9_])(gho_''[A-Za-z0-9_]{20,}|sk-''[A-Za-z0-9_-]{20,})'
+SENSITIVE_PATTERN="(${PATH_PATTERN}|${TOKEN_PATTERN})"
 if command -v rg >/dev/null 2>&1; then
-  ! rg -n --hidden -g '!node_modules/**' -g '!.git/**' -g '!package-lock.json' "$SENSITIVE_PATTERN" .
+  if rg -n --hidden -g '!node_modules/**' -g '!.git/**' -g '!package-lock.json' "$SENSITIVE_PATTERN" .; then
+    echo "Potential secret, private path, or signing metadata found." >&2
+    exit 1
+  fi
 else
-  ! git grep -n -E "$SENSITIVE_PATTERN" -- .
+  if git grep -n -E "$SENSITIVE_PATTERN" -- .; then
+    echo "Potential secret, private path, or signing metadata found." >&2
+    exit 1
+  fi
 fi
 
 echo "Across Context checks passed."

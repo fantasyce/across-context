@@ -1,6 +1,7 @@
 # Across Context
 
 ![Quality](https://github.com/fantasyce/across-context/actions/workflows/quality.yml/badge.svg)
+![Security](https://github.com/fantasyce/across-context/actions/workflows/security.yml/badge.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 
 One local-first memory layer for every coding agent.
