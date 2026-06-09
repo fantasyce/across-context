@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { ContextVault } from "./vault.js";
 import { learnProject } from "./project.js";
 import { exportContext, renderContextDocument } from "./exporters.js";
-import { installAgent, installHostPlugin } from "./installers.js";
+import { installAgent, installHostPlugin, uninstallHostPlugin } from "./installers.js";
 import { doctorAcrossContext, setupAcrossContext, statusAcrossContext } from "./setup.js";
 import { renderAgentCard } from "./agent-card.js";
 import { runHook } from "./hooks.js";
@@ -36,8 +36,13 @@ async function main(argv) {
       projectRoot: parsed.project,
       source: "cli",
       auto: Boolean(parsed.auto),
+      status: parsed.status,
       visibility: parsed.visibility
     });
+    if (parsed.json) {
+      console.log(JSON.stringify({ memory: entry }, null, 2));
+      return;
+    }
     console.log(`Remembered ${entry.scope} ${entry.type}: ${entry.text}`);
     return;
   }
@@ -94,6 +99,10 @@ async function main(argv) {
     const parsed = parseArgs(rest);
     const status = command === "approve" ? "active" : command === "archive" ? "archived" : "expired";
     const entry = await vault.updateStatus(parsed.positionals[0], status);
+    if (parsed.json) {
+      console.log(JSON.stringify({ memory: entry }, null, 2));
+      return;
+    }
     console.log(`${entry.id}: ${entry.status}`);
     return;
   }
@@ -117,7 +126,8 @@ async function main(argv) {
     const parsed = parseArgs(rest);
     const memories = await vault.listMemories({
       projectRoot: parsed.project,
-      includeGlobal: true
+      includeGlobal: true,
+      status: parsed.status
     });
     if (parsed.json) {
       console.log(JSON.stringify(memories, null, 2));
@@ -137,6 +147,10 @@ async function main(argv) {
     const parsed = parseArgs(rest);
     const id = parsed.positionals[0];
     const result = await vault.forget(id);
+    if (parsed.json) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
     console.log(`forgotten: ${result.forgotten}`);
     return;
   }
@@ -272,6 +286,23 @@ async function main(argv) {
     return;
   }
 
+  if (command === "uninstall") {
+    const [target, ...uninstallRest] = rest;
+    if (target !== "host-plugin") {
+      throw new Error("Usage: across-context uninstall host-plugin [--across-home path]");
+    }
+    const parsed = parseArgs(uninstallRest);
+    const result = await uninstallHostPlugin({
+      acrossHome: parsed["across-home"],
+      pluginRoot: parsed["plugin-root"],
+      binDir: parsed["bin-dir"],
+      prefix: parsed.prefix
+    });
+    console.log(`Removed host plugin command at ${result.commandPath}`);
+    console.log(`runtime: ${result.installDir}`);
+    return;
+  }
+
   if (command === "setup") {
     const parsed = parseArgs(rest);
     const projectRoot = resolve(parsed.project || process.cwd());
@@ -360,17 +391,18 @@ function printHelp() {
 
 Commands:
   init                                  Create the local context vault
-  remember <text> [--scope global|project] [--type preference|decision|note|command|session] [--project path]
+  remember <text> [--scope global|project] [--type preference|decision|note|command|session] [--status pending|active] [--project path] [--json]
   search <query> [--project path] [--mode keyword|semantic|hybrid]
                                         Search global and project context
   search <query> --json [--explain]     Print structured search results
-  list [--project path] [--json]        List stored memories
+  list [--project path] [--status pending|active|archived|expired] [--json]
+                                        List stored memories
   pending [--project path] [--json]     List pending automatic memories
-  approve <memory-id>                   Approve a pending memory
-  archive <memory-id>                   Archive a memory
-  expire <memory-id>                    Mark a memory expired
+  approve <memory-id> [--json]          Approve a pending memory
+  archive <memory-id> [--json]          Archive a memory
+  expire <memory-id> [--json]           Mark a memory expired
   update-status <status> <memory-id...> Batch update memory lifecycle status
-  forget <memory-id>                    Remove a memory by id
+  forget <memory-id> [--json]           Remove a memory by id
   stats [--project path]                Show memory counts
   compact [--project path]              Remove duplicate records from the vault
   agent-card [--json]                   Print the Across Context agent card
@@ -385,6 +417,8 @@ Commands:
   install <codex|cursor|claude-code> [--project path] [--stdout]
   install host-plugin [--across-home path]
                                         Install runtime for host apps under ~/.across
+  uninstall host-plugin [--across-home path]
+                                        Remove managed host runtime while preserving data
   setup [--all] [--yes] [--no-external] [--project path]
   doctor [--project path]               Verify vault, project files, and local agent availability
   status [--project path]               Show vault and agent summary
