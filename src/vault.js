@@ -1,4 +1,4 @@
-import { access, appendFile, cp, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { access, appendFile, copyFile, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { MemoryPolicyEngine, normalizeMemoryText } from "./memory-policy.js";
 import { searchEntries } from "./semantic-search.js";
@@ -286,10 +286,8 @@ export class ContextVault {
     if (!this.shouldMigrateLegacy) return;
     const legacyHome = legacyDefaultHome(this.env);
     if (resolve(legacyHome) === resolve(this.home)) return;
-    if (await pathExists(this.home)) return;
     if (!(await pathExists(legacyHome))) return;
-    await mkdir(dirname(this.home), { recursive: true });
-    await cp(legacyHome, this.home, { recursive: true, force: false });
+    await copyMissingDirectory(legacyHome, this.home);
   }
 
   async getProjectProfile(projectRoot) {
@@ -361,6 +359,21 @@ async function pathExists(path) {
     return true;
   } catch {
     return false;
+  }
+}
+
+async function copyMissingDirectory(source, destination) {
+  await mkdir(destination, { recursive: true });
+  const entries = await readdir(source, { withFileTypes: true });
+  for (const entry of entries) {
+    const sourcePath = join(source, entry.name);
+    const destinationPath = join(destination, entry.name);
+    if (entry.isDirectory()) {
+      await copyMissingDirectory(sourcePath, destinationPath);
+    } else if (entry.isFile() && !(await pathExists(destinationPath))) {
+      await mkdir(dirname(destinationPath), { recursive: true });
+      await copyFile(sourcePath, destinationPath);
+    }
   }
 }
 

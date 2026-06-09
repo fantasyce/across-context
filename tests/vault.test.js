@@ -53,6 +53,57 @@ test("ContextVault migrates legacy default vault into ACROSS_HOME data namespace
   assert.equal(memories[0].text, "Legacy shared memory should migrate.");
 });
 
+test("ContextVault backfills missing legacy files when ACROSS_HOME data already exists", async () => {
+  const home = await mkdtemp(join(tmpdir(), "across-context-backfill-home-"));
+  const acrossHome = await mkdtemp(join(tmpdir(), "across-home-"));
+  const newGlobal = join(acrossHome, "data", "across-context", "global");
+  const legacyProject = join(home, ".across-context", "projects", "legacy-project");
+  await mkdir(newGlobal, { recursive: true });
+  await mkdir(legacyProject, { recursive: true });
+  await writeFile(
+    join(newGlobal, "memories.jsonl"),
+    `${JSON.stringify({
+      id: "mem_current",
+      scope: "global",
+      type: "note",
+      text: "Current shared memory should remain.",
+      tags: [],
+      status: "active",
+      createdAt: "2026-06-09T00:00:00.000Z",
+      updatedAt: "2026-06-09T00:00:00.000Z"
+    })}\n`,
+    "utf8"
+  );
+  await writeFile(
+    join(legacyProject, "memories.jsonl"),
+    `${JSON.stringify({
+      id: "mem_legacy_project",
+      scope: "project",
+      type: "decision",
+      text: "Legacy project memory should backfill.",
+      tags: [],
+      status: "active",
+      projectId: "legacy-project",
+      projectName: "legacy",
+      createdAt: "2026-06-09T00:00:00.000Z",
+      updatedAt: "2026-06-09T00:00:00.000Z"
+    })}\n`,
+    "utf8"
+  );
+
+  const vault = new ContextVault({ env: { HOME: home, ACROSS_HOME: acrossHome } });
+  await vault.init();
+
+  assert.match(
+    await readFile(join(vault.home, "global", "memories.jsonl"), "utf8"),
+    /Current shared memory should remain/
+  );
+  assert.match(
+    await readFile(join(vault.home, "projects", "legacy-project", "memories.jsonl"), "utf8"),
+    /Legacy project memory should backfill/
+  );
+});
+
 test("ContextVault stores project memories with a stable project id", async () => {
   const vault = await tempVault();
   const projectRoot = join(vault.home, "workspace", "demo-app");
