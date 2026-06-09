@@ -55,6 +55,17 @@ Across Context has three layers:
 This is the important product idea: MCP alone is not enough. Agents also need
 operating instructions, and automatic memory needs guardrails.
 
+### New in v0.5
+
+- Host-friendly plugin lifecycle metadata with install, repair, upgrade, and
+  uninstall actions that preserve user memory data
+- JSON memory lifecycle commands for host apps:
+  `remember --json`, `list --status --json`, `approve --json`, `archive --json`,
+  and `forget --json`
+- Unified Across ecosystem paths under `~/.across`, including
+  `~/.across/plugins/across-context` for runtime code and
+  `~/.across/data/across-context` for durable memory
+
 ### New in v0.3
 
 - MCP resources and prompts for discoverable memory context and repeatable agent workflows
@@ -82,7 +93,7 @@ Or install from a local release tarball:
 
 ```bash
 npm pack
-npm install -g ./across-context-0.4.1.tgz
+npm install -g ./across-context-0.5.0.tgz
 ```
 
 Verify:

@@ -84,3 +84,28 @@ test("CLI reviews pending memories, exports agent card, and runs hooks", async (
   assert.equal(allPending.length, 1);
   assert.match(batch.stdout, /updated: 1/);
 });
+
+test("CLI exposes JSON memory lifecycle operations for host apps", async () => {
+  const home = await mkdtemp(join(tmpdir(), "across-context-cli-json-home-"));
+  const env = { ...process.env, ACROSS_CONTEXT_HOME: home };
+
+  const created = await exec(
+    "node",
+    [cli, "remember", "Host apps can review plugin memory.", "--status", "pending", "--json"],
+    { env }
+  );
+  const memory = JSON.parse(created.stdout).memory;
+  assert.equal(memory.status, "pending");
+
+  const pending = JSON.parse((await exec("node", [cli, "list", "--status", "pending", "--json"], { env })).stdout);
+  assert.deepEqual(pending.map((entry) => entry.id), [memory.id]);
+
+  const approved = JSON.parse((await exec("node", [cli, "approve", memory.id, "--json"], { env })).stdout);
+  assert.equal(approved.memory.status, "active");
+
+  const archived = JSON.parse((await exec("node", [cli, "archive", memory.id, "--json"], { env })).stdout);
+  assert.equal(archived.memory.status, "archived");
+
+  const forgotten = JSON.parse((await exec("node", [cli, "forget", memory.id, "--json"], { env })).stdout);
+  assert.equal(forgotten.forgotten, 1);
+});

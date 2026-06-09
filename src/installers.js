@@ -105,6 +105,31 @@ export async function installHostPlugin(options = {}) {
   };
 }
 
+export async function uninstallHostPlugin(options = {}) {
+  const env = options.env || process.env;
+  const acrossHome = resolve(options.acrossHome || ecosystemHome(env));
+  const root = resolve(
+    options.pluginRoot
+    || options.prefix
+    || env.ACROSS_PLUGIN_HOME
+    || env.ACROSS_AGENTS_PLUGIN_HOME
+    || pluginRoot({ ...env, ACROSS_HOME: acrossHome })
+  );
+  const binDir = resolve(options.binDir || ecosystemBinDir({ ...env, ACROSS_HOME: acrossHome }));
+  const installDir = join(root, COMPONENT_ID);
+  const commandPath = join(binDir, "across-context");
+
+  await rm(commandPath, { force: true });
+  await rm(installDir, { recursive: true, force: true });
+
+  return {
+    target: "host-plugin",
+    removed: true,
+    installDir,
+    commandPath
+  };
+}
+
 async function copyPackageEntry(sourceRoot, targetRoot, entry) {
   const source = join(sourceRoot, entry);
   if (!(await pathExists(source))) return;

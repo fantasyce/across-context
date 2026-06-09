@@ -37,6 +37,48 @@ export async function renderPluginManifest(options = {}) {
       dashboard: true,
       localFirst: true
     },
+    compatibility: {
+      requiredHostVersion: ">=0.6.0",
+      pluginApiVersion: "2026-06-10",
+      compatiblePluginApiVersions: ["2026-06-10"]
+    },
+    permissions: {
+      filesystem: [
+        { path: "~/.across/data/across-context", access: "read-write", reason: "Shared memory vault" },
+        { path: "~/.across/plugins/across-context", access: "read", reason: "Managed plugin runtime" }
+      ],
+      network: [],
+      secrets: []
+    },
+    diagnostics: {
+      startupSafe: true,
+      startsProcess: false,
+      statusCommandSafeAtStartup: true,
+      healthMayInitializeVault: true
+    },
+    lifecycle: {
+      install: {
+        hostManaged: true,
+        command: commandPath,
+        args: ["install", "host-plugin"],
+        idempotent: true
+      },
+      upgrade: {
+        hostManaged: true,
+        strategy: "reinstall"
+      },
+      repair: {
+        hostManaged: true,
+        strategy: "reinstall"
+      },
+      uninstall: {
+        hostManaged: true,
+        command: commandPath,
+        args: ["uninstall", "host-plugin"],
+        removesRuntime: true,
+        preservesData: true
+      }
+    },
     entrypoints: {
       cli: {
         command: commandPath
@@ -121,6 +163,10 @@ export async function renderPluginStatus(options = {}) {
       installable: true,
       command: "across-context install host-plugin",
       installDir: manifest.paths.plugin
+    },
+    lifecycle: {
+      actions: ["install", "upgrade", "repair", "uninstall"],
+      preservesDataOnUninstall: true
     }
   };
 }

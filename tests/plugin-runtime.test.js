@@ -21,6 +21,10 @@ test("plugin-manifest exposes the Across host runtime contract", async () => {
   assert.equal(manifest.entrypoints.mcp.transport, "stdio");
   assert.equal(manifest.entrypoints.mcp.args[0], "mcp");
   assert.equal(manifest.entrypoints.status.args[0], "plugin-status");
+  assert.equal(manifest.lifecycle.uninstall.args[0], "uninstall");
+  assert.equal(manifest.lifecycle.uninstall.preservesData, true);
+  assert.equal(manifest.permissions.filesystem[0].access, "read-write");
+  assert.equal(manifest.compatibility.requiredHostVersion, ">=0.6.0");
   assert.equal(manifest.paths.plugin, join(acrossHome, "plugins", "across-context"));
   assert.equal(manifest.paths.data, join(acrossHome, "data", "across-context"));
 });
@@ -42,7 +46,13 @@ test("plugin-status reports managed install availability", async () => {
   assert.equal(after.available, true);
   assert.equal(after.manifestExists, true);
   assert.equal(manifest.entrypoints.health.args[0], "health");
+  assert.deepEqual(after.lifecycle.actions, ["install", "upgrade", "repair", "uninstall"]);
   assert.equal(manifest.paths.data, join(acrossHome, "data", "across-context"));
+
+  await exec(join(acrossHome, "bin", "across-context"), ["uninstall", "host-plugin", "--across-home", acrossHome], { env });
+  const uninstalled = JSON.parse((await exec("node", [cli, "plugin-status", "--json"], { env })).stdout);
+  assert.equal(uninstalled.installed, false);
+  assert.equal(uninstalled.available, false);
 });
 
 test("health initializes the local vault without requiring agent setup", async () => {
