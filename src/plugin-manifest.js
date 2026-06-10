@@ -33,6 +33,7 @@ export async function renderPluginManifest(options = {}) {
       memory: true,
       semanticSearch: true,
       pendingApproval: true,
+      agentLoopMemoryHooks: true,
       lifecycle: true,
       dashboard: true,
       localFirst: true
@@ -108,9 +109,18 @@ export async function renderPluginManifest(options = {}) {
     protocols: {
       mcp: {
         transport: "stdio",
-        tools: true,
+        tools: {
+          searchContext: "search_context",
+          rememberContext: "remember_context",
+          getAgentLoopMemoryPolicy: "get_agent_loop_memory_policy"
+        },
         resources: true,
-        prompts: true
+        prompts: {
+          taskStartContext: "task-start-context",
+          taskEndSummary: "task-end-summary",
+          memoryReview: "memory-review",
+          agentLoopMemoryPolicy: "agent-loop-memory-policy"
+        }
       },
       cli: {
         command: commandPath

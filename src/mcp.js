@@ -2,11 +2,12 @@ import { resolve } from "node:path";
 import { exportContext, renderContextDocument } from "./exporters.js";
 import { learnProject } from "./project.js";
 import { renderAgentCard } from "./agent-card.js";
+import { renderAgentLoopMemoryPolicy, renderAgentLoopMemoryPromptText } from "./loop-memory-policy.js";
 
 export function createContextMcpServerDefinition(vault) {
   return {
     name: "across-context",
-    version: "0.5.0",
+    version: "0.6.0",
     resources: [
       {
         uri: "across-context://agent-card",
@@ -31,6 +32,12 @@ export function createContextMcpServerDefinition(vault) {
         name: "Project Context",
         description: "Generated AGENTS.md-style project context.",
         mimeType: "text/markdown"
+      },
+      {
+        uri: "across-context://agent-loop-memory-policy",
+        name: "Agent Loop Memory Policy",
+        description: "Memory hook policy for durable agent loop runtimes.",
+        mimeType: "application/json"
       }
     ],
     prompts: [
@@ -56,6 +63,11 @@ export function createContextMcpServerDefinition(vault) {
         arguments: [
           { name: "projectRoot", description: "Project root for pending project memory.", required: false }
         ]
+      },
+      {
+        name: "agent-loop-memory-policy",
+        description: "Explain how agent loops should read, attach, and write Across Context memory.",
+        arguments: []
       }
     ],
     tools: [
@@ -179,6 +191,18 @@ export function createContextMcpServerDefinition(vault) {
         handler: async () => textResult(JSON.stringify(await renderAgentCard(vault), null, 2))
       },
       {
+        name: "get_agent_loop_memory_policy",
+        description: "Return the Across Context memory lifecycle policy for durable agent loop runtimes.",
+        inputSchema: {
+          type: "object",
+          properties: {}
+        },
+        handler: async () => textResult(
+          JSON.stringify(renderAgentLoopMemoryPolicy(), null, 2),
+          { policy: renderAgentLoopMemoryPolicy() }
+        )
+      },
+      {
         name: "export_agent_instructions",
         description: "Write AGENTS.md, CLAUDE.md, Cursor rules, or Markdown context exports for a project.",
         inputSchema: {
@@ -225,6 +249,9 @@ async function readResource(vault, uri, args = {}) {
     const document = await renderContextDocument(vault, { projectRoot, target: "agents" });
     return resourceResult(uri, "text/markdown", document);
   }
+  if (uri === "across-context://agent-loop-memory-policy") {
+    return resourceResult(uri, "application/json", JSON.stringify(renderAgentLoopMemoryPolicy(), null, 2));
+  }
   throw new Error(`Unknown resource: ${uri}`);
 }
 
@@ -256,6 +283,13 @@ async function getPrompt(vault, name, args = {}) {
       name,
       "Review pending memories.",
       `Review pending memories and approve only durable, non-secret context.\n\n${pending}`
+    );
+  }
+  if (name === "agent-loop-memory-policy") {
+    return promptResult(
+      name,
+      "Apply Across Context memory hooks to an agent loop.",
+      renderAgentLoopMemoryPromptText()
     );
   }
   throw new Error(`Unknown prompt: ${name}`);

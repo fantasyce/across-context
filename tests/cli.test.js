@@ -69,6 +69,7 @@ test("CLI reviews pending memories, exports agent card, and runs hooks", async (
   const semantic = await exec("node", [cli, "search", "agent bootstrap context", "--mode", "semantic", "--project", project], { env });
   const explained = await exec("node", [cli, "search", "bootstrap", "--mode", "hybrid", "--project", project, "--json", "--explain"], { env });
   const card = await exec("node", [cli, "agent-card", "--json"], { env });
+  const loopPolicy = await exec("node", [cli, "loop-memory-policy", "--json"], { env });
   const team = await exec("node", [cli, "team", "export", "--project", project], { env });
   const hook = await exec("node", [cli, "hook", "task-start", "--query", "bootstrap", "--project", project], { env });
   await exec("node", [cli, "remember", "Maybe remember a second review item.", "--auto"], { env });
@@ -79,6 +80,9 @@ test("CLI reviews pending memories, exports agent card, and runs hooks", async (
   assert.match(semantic.stdout, /deterministic task-start/);
   assert.ok(JSON.parse(explained.stdout).results[0].explanation.matchedTerms.length > 0);
   assert.equal(JSON.parse(card.stdout).capabilities.memory, true);
+  assert.equal(JSON.parse(card.stdout).capabilities.agentLoopMemoryHooks, true);
+  assert.equal(JSON.parse(loopPolicy.stdout).defaultWriteStatus, "pending");
+  assert.equal(JSON.parse(loopPolicy.stdout).hooks[0].id, "pre_loop_search");
   assert.match(team.stdout, /deterministic task-start/);
   assert.match(hook.stdout, /deterministic task-start/);
   assert.equal(allPending.length, 1);

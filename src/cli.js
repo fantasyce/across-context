@@ -6,6 +6,7 @@ import { exportContext, renderContextDocument } from "./exporters.js";
 import { installAgent, installHostPlugin, uninstallHostPlugin } from "./installers.js";
 import { doctorAcrossContext, setupAcrossContext, statusAcrossContext } from "./setup.js";
 import { renderAgentCard } from "./agent-card.js";
+import { renderAgentLoopMemoryPolicy } from "./loop-memory-policy.js";
 import { runHook } from "./hooks.js";
 import { startDashboard } from "./dashboard.js";
 import { renderHealth, renderPluginManifest, renderPluginStatus } from "./plugin-manifest.js";
@@ -173,6 +174,13 @@ async function main(argv) {
     const parsed = parseArgs(rest);
     const card = await renderAgentCard(vault);
     console.log(parsed.json ? JSON.stringify(card, null, 2) : formatAgentCard(card));
+    return;
+  }
+
+  if (command === "loop-memory-policy") {
+    const parsed = parseArgs(rest);
+    const policy = renderAgentLoopMemoryPolicy();
+    console.log(parsed.json ? JSON.stringify(policy, null, 2) : formatLoopMemoryPolicy(policy));
     return;
   }
 
@@ -406,6 +414,7 @@ Commands:
   stats [--project path]                Show memory counts
   compact [--project path]              Remove duplicate records from the vault
   agent-card [--json]                   Print the Across Context agent card
+  loop-memory-policy [--json]           Print agent-loop memory hook policy
   plugin-manifest [--json]              Print the Across plugin manifest
   plugin-status [--json]                Print host-install and protocol status
   health [--json]                       Probe vault health without external agent setup
@@ -479,6 +488,15 @@ function formatAgentCard(card) {
     card.description,
     `MCP: ${card.endpoints.mcp.command} ${card.endpoints.mcp.args.join(" ")}`,
     `Skills: ${card.skills.map((skill) => skill.id).join(", ")}`
+  ].join("\n");
+}
+
+function formatLoopMemoryPolicy(policy) {
+  return [
+    `provider: ${policy.provider}`,
+    `default read: ${policy.defaultReadStatus}`,
+    `default write: ${policy.defaultWriteStatus}`,
+    `hooks: ${policy.hooks.map((hook) => hook.id).join(", ")}`
   ].join("\n");
 }
 
