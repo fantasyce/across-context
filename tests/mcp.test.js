@@ -17,6 +17,7 @@ test("MCP server definition exposes memory tools backed by the vault", async () 
       "approve_memory",
       "export_agent_instructions",
       "get_agent_card",
+      "get_agent_loop_memory_policy",
       "get_project_context",
       "remember_context",
       "review_pending_memories",
@@ -45,11 +46,22 @@ test("MCP server definition exposes resources and prompts", async () => {
 
   assert.ok(definition.resources.some((resource) => resource.uri === "across-context://agent-card"));
   assert.ok(definition.resources.some((resource) => resource.uri === "across-context://stats"));
+  assert.ok(definition.resources.some((resource) => resource.uri === "across-context://agent-loop-memory-policy"));
   assert.ok(definition.prompts.some((prompt) => prompt.name === "task-start-context"));
+  assert.ok(definition.prompts.some((prompt) => prompt.name === "agent-loop-memory-policy"));
 
   const resource = await definition.readResource("across-context://stats", {});
   assert.match(JSON.stringify(resource), /total/);
 
   const prompt = await definition.getPrompt("memory-review", { projectRoot: home });
   assert.match(JSON.stringify(prompt), /pending memories/i);
+
+  const policyPrompt = await definition.getPrompt("agent-loop-memory-policy", {});
+  assert.match(JSON.stringify(policyPrompt), /pre-loop search/i);
+  assert.match(JSON.stringify(policyPrompt), /pending summary/i);
+
+  const policyResource = await definition.readResource("across-context://agent-loop-memory-policy", {});
+  const policy = JSON.parse(policyResource.contents[0].text);
+  assert.equal(policy.defaultWriteStatus, "pending");
+  assert.equal(policy.hooks[0].id, "pre_loop_search");
 });

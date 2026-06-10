@@ -55,6 +55,13 @@ Across Context has three layers:
 This is the important product idea: MCP alone is not enough. Agents also need
 operating instructions, and automatic memory needs guardrails.
 
+### New in v0.6
+
+- Agent-loop memory hook policy for durable orchestration runtimes
+- MCP resource, prompt, and tool surfaces for loop memory governance
+- CLI command `loop-memory-policy --json` so host apps can inspect the memory
+  lifecycle without reading vault internals
+
 ### New in v0.5
 
 - Host-friendly plugin lifecycle metadata with install, repair, upgrade, and
@@ -93,7 +100,7 @@ Or install from a local release tarball:
 
 ```bash
 npm pack
-npm install -g ./across-context-0.5.0.tgz
+npm install -g ./across-context-0.6.0.tgz
 ```
 
 Verify:
@@ -180,6 +187,12 @@ and local lifecycle actions.
 
 All CLI and MCP writes go through the same policy engine.
 
+Agent-loop runtimes should use Across Context as a memory provider, not as a
+task scheduler. The `loop-memory-policy` command and MCP prompt/resource/tool
+describe the supported hooks: pre-loop search, step context attachment, and
+post-loop pending summary writes. Automatic loop writes default to `pending`
+until a user or host policy approves them.
+
 Allowed memory types:
 
 - `preference` - stable user preferences
@@ -224,6 +237,7 @@ across-context agent-card --json
 across-context team export --project .
 across-context hook task-start --query "release workflow" --project .
 across-context hook task-end --summary "Implemented dashboard and semantic search." --project .
+across-context loop-memory-policy --json
 across-context install host-plugin
 across-context plugin-manifest --json
 across-context plugin-status --json
@@ -242,6 +256,7 @@ The MCP server exposes tools:
 - `get_project_context`
 - `get_agent_card`
 - `export_agent_instructions`
+- `get_agent_loop_memory_policy`
 
 It also exposes resources:
 
@@ -249,12 +264,14 @@ It also exposes resources:
 - `across-context://stats`
 - `across-context://memories`
 - `across-context://project-context`
+- `across-context://agent-loop-memory-policy`
 
 And prompts:
 
 - `task-start-context`
 - `task-end-summary`
 - `memory-review`
+- `agent-loop-memory-policy`
 
 Start it manually:
 
@@ -420,6 +437,11 @@ across-context dashboard
 
 所有 CLI 和 MCP 写入都会先经过同一个策略引擎。
 
+Agent Loop 运行时应把 Across Context 当作记忆提供者，而不是任务调度器。
+`loop-memory-policy` 命令和 MCP prompt/resource/tool 会公开可支持的记忆钩子：
+loop 前搜索、step 上下文附加、loop 后 pending 摘要写入。自动写入默认进入
+`pending`，由用户或宿主策略审批后再变成长期有效记忆。
+
 支持的记忆类型：
 
 - `preference`：长期用户偏好
@@ -464,6 +486,7 @@ across-context agent-card --json
 across-context team export --project .
 across-context hook task-start --query "release workflow" --project .
 across-context hook task-end --summary "Implemented dashboard and semantic search." --project .
+across-context loop-memory-policy --json
 across-context install host-plugin
 across-context plugin-manifest --json
 across-context plugin-status --json
@@ -482,6 +505,7 @@ MCP Server 暴露工具：
 - `get_project_context`
 - `get_agent_card`
 - `export_agent_instructions`
+- `get_agent_loop_memory_policy`
 
 同时暴露 resources：
 
@@ -489,12 +513,14 @@ MCP Server 暴露工具：
 - `across-context://stats`
 - `across-context://memories`
 - `across-context://project-context`
+- `across-context://agent-loop-memory-policy`
 
 以及 prompts：
 
 - `task-start-context`
 - `task-end-summary`
 - `memory-review`
+- `agent-loop-memory-policy`
 
 ### 隐私模型
 

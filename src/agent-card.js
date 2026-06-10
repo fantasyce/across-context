@@ -1,13 +1,17 @@
+import { renderAgentLoopMemoryPolicy } from "./loop-memory-policy.js";
+
 export async function renderAgentCard(vault) {
+  const loopMemoryPolicy = renderAgentLoopMemoryPolicy();
   return {
     name: "Across Context",
-    version: "0.5.0",
+    version: "0.6.0",
     description: "Local-first shared memory provider for coding agents.",
     url: "https://github.com/fantasyce/across-context",
     capabilities: {
       memory: true,
       semanticSearch: true,
       pendingApproval: true,
+      agentLoopMemoryHooks: true,
       teamExport: true,
       localFirst: true
     },
@@ -42,13 +46,15 @@ export async function renderAgentCard(vault) {
       lifecycle: ["pending", "active", "pinned", "archived", "expired"],
       localFirst: true,
       rejectsSecrets: true,
-      teamVisibility: true
+      teamVisibility: true,
+      loopMemoryPolicy
     },
     memory: {
       storage: "local-jsonl",
       types: ["preference", "decision", "note", "command", "session"],
       scopes: ["global", "project"],
       retrievalModes: ["keyword", "semantic", "hybrid"],
+      loopHooks: loopMemoryPolicy.hooks.map((hook) => hook.id),
       explanations: true
     },
     vault: {
@@ -60,6 +66,11 @@ export async function renderAgentCard(vault) {
         id: "shared-memory",
         name: "Shared Memory",
         description: "Search and write durable local context across coding agents."
+      },
+      {
+        id: "agent-loop-memory-hooks",
+        name: "Agent Loop Memory Hooks",
+        description: "Provide pre-loop search, step context attachment, and post-loop pending summary policy."
       },
       {
         id: "memory-review",
