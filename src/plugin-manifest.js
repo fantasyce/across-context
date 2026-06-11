@@ -34,6 +34,9 @@ export async function renderPluginManifest(options = {}) {
       semanticSearch: true,
       pendingApproval: true,
       agentLoopMemoryHooks: true,
+      agentLoopMemoryHooksV2: true,
+      pendingLoopSummaries: true,
+      allProjectPendingReview: true,
       lifecycle: true,
       dashboard: true,
       localFirst: true

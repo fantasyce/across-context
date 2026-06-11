@@ -1,9 +1,29 @@
 export function renderAgentLoopMemoryPolicy() {
   return {
-    schemaVersion: "0.1",
+    schemaVersion: "0.2",
     provider: "across-context",
     defaultReadStatus: "active",
     defaultWriteStatus: "pending",
+    adapterContract: {
+      search: {
+        cli: "across-context search <query> --project <path> --status active --json",
+        mcpTool: "search_context",
+        activeStatus: "active",
+        includesGlobal: true
+      },
+      writeCandidate: {
+        cli: "across-context remember <summary> --scope project --project <path> --status pending --json",
+        mcpTool: "remember_context",
+        defaultStatus: "pending",
+        defaultType: "session"
+      },
+      review: {
+        cli: "across-context pending --project <path> --json",
+        allProjectsCli: "across-context pending --all-projects --json",
+        approveCli: "across-context approve <memory-id> --json",
+        mcpTools: ["review_pending_memories", "approve_memory"]
+      }
+    },
     hooks: [
       {
         id: "pre_loop_search",
