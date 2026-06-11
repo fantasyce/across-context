@@ -100,7 +100,7 @@ Or install from a local release tarball:
 
 ```bash
 npm pack
-npm install -g ./across-context-0.6.0.tgz
+npm install -g ./across-context-0.6.1.tgz
 ```
 
 Verify:
