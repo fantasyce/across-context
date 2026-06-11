@@ -80,6 +80,7 @@ async function main(argv) {
     const memories = await vault.listMemories({
       projectRoot: parsed.project,
       includeGlobal: true,
+      includeProjects: Boolean(parsed["all-projects"]),
       status: "pending"
     });
     if (parsed.json) {
@@ -128,6 +129,7 @@ async function main(argv) {
     const memories = await vault.listMemories({
       projectRoot: parsed.project,
       includeGlobal: true,
+      includeProjects: Boolean(parsed["all-projects"]),
       status: parsed.status
     });
     if (parsed.json) {
@@ -403,9 +405,10 @@ Commands:
   search <query> [--project path] [--mode keyword|semantic|hybrid]
                                         Search global and project context
   search <query> --json [--explain]     Print structured search results
-  list [--project path] [--status pending|active|archived|expired] [--json]
+  list [--project path|--all-projects] [--status pending|active|archived|expired] [--json]
                                         List stored memories
-  pending [--project path] [--json]     List pending automatic memories
+  pending [--project path|--all-projects] [--json]
+                                        List pending automatic memories
   approve <memory-id> [--json]          Approve a pending memory
   archive <memory-id> [--json]          Archive a memory
   expire <memory-id> [--json]           Mark a memory expired

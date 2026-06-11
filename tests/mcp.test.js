@@ -62,6 +62,28 @@ test("MCP server definition exposes resources and prompts", async () => {
 
   const policyResource = await definition.readResource("across-context://agent-loop-memory-policy", {});
   const policy = JSON.parse(policyResource.contents[0].text);
+  assert.equal(policy.schemaVersion, "0.2");
   assert.equal(policy.defaultWriteStatus, "pending");
+  assert.equal(policy.adapterContract.search.activeStatus, "active");
+  assert.equal(policy.adapterContract.writeCandidate.defaultStatus, "pending");
   assert.equal(policy.hooks[0].id, "pre_loop_search");
+});
+
+test("MCP review_pending_memories includes project memories when no project is specified", async () => {
+  const home = await mkdtemp(join(tmpdir(), "across-context-mcp-review-"));
+  const vault = new ContextVault({ home });
+  const projectRoot = join(home, "project-a");
+  await vault.remember({
+    scope: "project",
+    type: "session",
+    text: "Project pending memory visible from review.",
+    projectRoot,
+    status: "pending"
+  });
+  const definition = createContextMcpServerDefinition(vault);
+  const review = definition.tools.find((tool) => tool.name === "review_pending_memories");
+
+  const result = await review.handler({});
+
+  assert.match(JSON.stringify(result), /Project pending memory visible from review/);
 });

@@ -4,7 +4,7 @@ export async function renderAgentCard(vault) {
   const loopMemoryPolicy = renderAgentLoopMemoryPolicy();
   return {
     name: "Across Context",
-    version: "0.6.1",
+    version: "0.7.0",
     description: "Local-first shared memory provider for coding agents.",
     url: "https://github.com/fantasyce/across-context",
     capabilities: {
@@ -12,6 +12,8 @@ export async function renderAgentCard(vault) {
       semanticSearch: true,
       pendingApproval: true,
       agentLoopMemoryHooks: true,
+      agentLoopMemoryHooksV2: true,
+      allProjectPendingReview: true,
       teamExport: true,
       localFirst: true
     },
@@ -44,6 +46,7 @@ export async function renderAgentCard(vault) {
     governance: {
       pendingApproval: true,
       lifecycle: ["pending", "active", "pinned", "archived", "expired"],
+      allProjectPendingReview: true,
       localFirst: true,
       rejectsSecrets: true,
       teamVisibility: true,
@@ -55,6 +58,7 @@ export async function renderAgentCard(vault) {
       scopes: ["global", "project"],
       retrievalModes: ["keyword", "semantic", "hybrid"],
       loopHooks: loopMemoryPolicy.hooks.map((hook) => hook.id),
+      reviewModes: ["global", "project", "all-projects"],
       explanations: true
     },
     vault: {

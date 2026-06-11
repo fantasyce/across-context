@@ -7,7 +7,7 @@ import { renderAgentLoopMemoryPolicy, renderAgentLoopMemoryPromptText } from "./
 export function createContextMcpServerDefinition(vault) {
   return {
     name: "across-context",
-    version: "0.6.1",
+    version: "0.7.0",
     resources: [
       {
         uri: "across-context://agent-card",
@@ -161,6 +161,7 @@ export function createContextMcpServerDefinition(vault) {
           const memories = await vault.listMemories({
             projectRoot: args.projectRoot,
             includeGlobal: true,
+            includeProjects: !args.projectRoot,
             status: "pending"
           });
           return textResult(memories.map((entry) => `- ${entry.id}: ${entry.text}`).join("\n") || "No pending memories.");

@@ -79,6 +79,23 @@ test("ContextVault stores automatic low-confidence memories as pending and appro
   assert.equal((await vault.listMemories({ status: "active" })).length, 1);
 });
 
+test("ContextVault can aggregate pending memories across all projects for review", async () => {
+  const vault = await tempVault();
+  const projectRoot = join(vault.home, "review-project");
+  await vault.remember({
+    scope: "project",
+    type: "session",
+    text: "Project pending review memory.",
+    projectRoot,
+    status: "pending"
+  });
+
+  assert.equal((await vault.listMemories({ status: "pending" })).length, 0);
+  const allPending = await vault.listMemories({ status: "pending", includeProjects: true });
+  assert.equal(allPending.length, 1);
+  assert.equal(allPending[0].text, "Project pending review memory.");
+});
+
 test("ContextVault updates multiple memory statuses in one call", async () => {
   const vault = await tempVault();
   const first = await vault.remember({

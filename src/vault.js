@@ -111,6 +111,18 @@ export class ContextVault {
     if (options.projectRoot) {
       const projectId = stableProjectId(resolve(options.projectRoot));
       memories.push(...await readJsonl(join(this.home, "projects", projectId, "memories.jsonl")));
+    } else if (options.includeProjects) {
+      const projectsRoot = join(this.home, "projects");
+      try {
+        const entries = await readdir(projectsRoot, { withFileTypes: true });
+        for (const entry of entries) {
+          if (entry.isDirectory()) {
+            memories.push(...await readJsonl(join(projectsRoot, entry.name, "memories.jsonl")));
+          }
+        }
+      } catch (error) {
+        if (error.code !== "ENOENT") throw error;
+      }
     }
     return memories
       .filter((entry) => !options.status || (entry.status || "active") === options.status)
