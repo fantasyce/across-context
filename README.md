@@ -55,6 +55,14 @@ Across Context has three layers:
 This is the important product idea: MCP alone is not enough. Agents also need
 operating instructions, and automatic memory needs guardrails.
 
+### New in v0.7.1
+
+- Fresh installs and managed host-plugin runs use only
+  `~/.across/data/across-context` by default.
+- Old standalone `~/.across-context` vaults are no longer read or copied
+  automatically; hosts should pass an explicit `ACROSS_CONTEXT_HOME` only when
+  they intentionally want a custom vault location.
+
 ### New in v0.7
 
 - Agent Loop memory policy schema `0.2` with an explicit adapter contract for
@@ -110,7 +118,7 @@ Or install from a local release tarball:
 
 ```bash
 npm pack
-npm install -g ./across-context-0.7.0.tgz
+npm install -g ./across-context-0.7.1.tgz
 ```
 
 Verify:
