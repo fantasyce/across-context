@@ -26,7 +26,7 @@ test("ContextVault stores global memories in append-only jsonl", async () => {
   assert.match(raw, /Prefer pnpm over npm/);
 });
 
-test("ContextVault migrates legacy default vault into ACROSS_HOME data namespace", async () => {
+test("ContextVault ignores old .across-context vaults", async () => {
   const home = await mkdtemp(join(tmpdir(), "across-context-legacy-home-"));
   const acrossHome = await mkdtemp(join(tmpdir(), "across-home-"));
   const legacyGlobal = join(home, ".across-context", "global");
@@ -50,10 +50,10 @@ test("ContextVault migrates legacy default vault into ACROSS_HOME data namespace
   const memories = await vault.listMemories();
 
   assert.equal(vault.home, join(acrossHome, "data", "across-context"));
-  assert.equal(memories[0].text, "Legacy shared memory should migrate.");
+  assert.deepEqual(memories, []);
 });
 
-test("ContextVault backfills missing legacy files when ACROSS_HOME data already exists", async () => {
+test("ContextVault does not backfill old .across-context files when ACROSS_HOME data already exists", async () => {
   const home = await mkdtemp(join(tmpdir(), "across-context-backfill-home-"));
   const acrossHome = await mkdtemp(join(tmpdir(), "across-home-"));
   const newGlobal = join(acrossHome, "data", "across-context", "global");
@@ -99,8 +99,12 @@ test("ContextVault backfills missing legacy files when ACROSS_HOME data already 
     /Current shared memory should remain/
   );
   assert.match(
-    await readFile(join(vault.home, "projects", "legacy-project", "memories.jsonl"), "utf8"),
-    /Legacy project memory should backfill/
+    await readFile(join(vault.home, "global", "memories.jsonl"), "utf8"),
+    /Current shared memory should remain/
+  );
+  await assert.rejects(
+    () => readFile(join(vault.home, "projects", "legacy-project", "memories.jsonl"), "utf8"),
+    { code: "ENOENT" }
   );
 });
 

@@ -24,10 +24,6 @@ export function defaultHome(env = process.env) {
   return resolve(env.ACROSS_CONTEXT_HOME || componentDataHome(COMPONENT_ID, env));
 }
 
-export function legacyDefaultHome(env = process.env) {
-  return resolve(env.HOME || homedir(), ".across-context");
-}
-
 export function nowIso() {
   return new Date().toISOString();
 }
