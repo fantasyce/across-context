@@ -16,6 +16,13 @@ Across Context stores memory locally by default under
 The package does not provide cloud sync and does not send vault contents to a
 hosted service.
 
+When installed as a host plugin, runtime code should live under
+`~/.across/plugins/across-context`, the executable wrapper should live at
+`~/.across/bin/across-context`, and generated manifests should describe those
+managed paths. Packaged hosts should not point at `npm link`, a development
+checkout, or `~/Documents/projects/...` unless the user explicitly selected a
+developer override.
+
 ## Sensitive Data
 
 The memory policy engine rejects common secret-like patterns before writing.
@@ -28,3 +35,7 @@ Users and contributors should still avoid storing:
 - credentials
 - private screenshots
 - large logs with personal or production data
+
+Release-candidate changes should run `bash scripts/check.sh`,
+`npm pack --dry-run --cache /tmp/across-context-npm-cache`, and the repository
+Security workflow before publication.
