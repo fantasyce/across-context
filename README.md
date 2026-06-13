@@ -111,10 +111,11 @@ operating instructions, and automatic memory needs guardrails.
 
 ### Install
 
-This first open-source release is GitHub-first. The npm package metadata is
-ready, but the package does not need runtime dependencies.
+The current open-source distribution is GitHub-first. Release tarballs are
+attached to GitHub Releases, and the npm package metadata is ready, but npm
+registry publication is not required for hosts to install or run the plugin.
 
-Install from source:
+Install from source for development:
 
 ```bash
 git clone https://github.com/fantasyce/across-context.git
@@ -333,6 +334,8 @@ ACROSS_CONTEXT_HOME=/tmp/across-context-demo across-context init
 - The vault is local-first.
 - This package does not sync memory to a hosted service.
 - Public exports never include absolute project paths.
+- Host-plugin manifests, wrappers, and status output should not embed
+  development checkout paths.
 - Generated files should be reviewed before committing.
 - Secrets, tokens, credentials, cookies, private screenshots, and large logs should not be stored.
 
@@ -393,6 +396,17 @@ across-context setup --all --yes
 - 生成 `CLAUDE.md`
 - 生成 Cursor MCP 配置和规则
 - 注入自动读写记忆的行为规则
+
+### v0.7.2 新能力
+
+- host-plugin 安装元数据不再嵌入开发 checkout 路径，打包宿主可以只从
+  `~/.across` 安装、发现和检查插件。
+- 公开发布元数据使用中性的 Across Context 贡献者身份。
+- 新安装和宿主管理的插件运行默认只使用
+  `~/.across/data/across-context`，不会自动读取或迁移旧的
+  `~/.across-context` vault。
+- Agent Loop 记忆 hooks、pending loop summary 和
+  `pending --all-projects --json` 继续作为宿主集成的稳定接口。
 
 ### v0.3 新能力
 
@@ -563,6 +577,7 @@ MCP Server 暴露工具：
 - vault 默认只保存在本机。
 - 本包不会把记忆同步到云端服务。
 - 公共导出不会包含绝对项目路径。
+- host-plugin manifest、wrapper 和状态输出不应该嵌入开发 checkout 路径。
 - 提交生成文件前应该先检查内容。
 - 不应该保存密钥、token、凭据、cookie、私密截图或大段日志。
 
