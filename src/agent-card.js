@@ -4,7 +4,7 @@ export async function renderAgentCard(vault) {
   const loopMemoryPolicy = renderAgentLoopMemoryPolicy();
   return {
     name: "Across Context",
-    version: "0.7.2",
+    version: "0.7.3",
     description: "Local-first shared memory provider for coding agents.",
     url: "https://github.com/fantasyce/across-context",
     capabilities: {

@@ -55,6 +55,12 @@ Across Context has three layers:
 This is the important product idea: MCP alone is not enough. Agents also need
 operating instructions, and automatic memory needs guardrails.
 
+### New in v0.7.3
+
+- Host-plugin install commands now reject legacy `--prefix` usage and ignore
+  legacy plugin-home overrides, keeping packaged hosts on the managed
+  `~/.across` runtime boundary.
+
 ### New in v0.7.2
 
 - Host-plugin install metadata avoids embedding development checkout paths, so
@@ -127,7 +133,7 @@ Or install from a local release tarball:
 
 ```bash
 npm pack
-npm install -g ./across-context-0.7.2.tgz
+npm install -g ./across-context-0.7.3.tgz
 ```
 
 Verify:
@@ -396,6 +402,11 @@ across-context setup --all --yes
 - 生成 `CLAUDE.md`
 - 生成 Cursor MCP 配置和规则
 - 注入自动读写记忆的行为规则
+
+### v0.7.3 新能力
+
+- host-plugin 安装命令会拒绝旧的 `--prefix` 用法，并忽略旧的
+  plugin-home override，确保打包宿主继续使用托管的 `~/.across` 运行时边界。
 
 ### v0.7.2 新能力
 
