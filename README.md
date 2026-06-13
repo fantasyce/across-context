@@ -55,6 +55,14 @@ Across Context has three layers:
 This is the important product idea: MCP alone is not enough. Agents also need
 operating instructions, and automatic memory needs guardrails.
 
+### New in v0.7.2
+
+- Host-plugin install metadata avoids embedding development checkout paths, so
+  packaged hosts can install and inspect the plugin from `~/.across` without
+  crossing into local source trees.
+- Package metadata now uses the neutral Across Context contributor identity for
+  public open-source distribution.
+
 ### New in v0.7.1
 
 - Fresh installs and managed host-plugin runs use only
@@ -118,7 +126,7 @@ Or install from a local release tarball:
 
 ```bash
 npm pack
-npm install -g ./across-context-0.7.1.tgz
+npm install -g ./across-context-0.7.2.tgz
 ```
 
 Verify:

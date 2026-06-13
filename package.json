@@ -1,6 +1,6 @@
 {
   "name": "@across/context",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "description": "Local-first shared memory layer for coding agents.",
   "type": "module",
   "bin": {
@@ -30,7 +30,7 @@
     "claude-code",
     "cursor"
   ],
-  "author": "Across Agents Assistant",
+  "author": "Across Context contributors",
   "license": "MIT",
   "engines": {
     "node": ">=20"
