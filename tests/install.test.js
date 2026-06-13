@@ -46,4 +46,6 @@ test("install host-plugin copies the runtime into a hidden plugin directory", as
   assert.equal(mode, 0o755);
   assert.match(wrapper, new RegExp(installDir.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   assert.doesNotMatch(wrapper, new RegExp(process.cwd().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.doesNotMatch(JSON.stringify(manifest), new RegExp(process.cwd().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.doesNotMatch(JSON.stringify(manifest), /Documents\/projects/);
 });
