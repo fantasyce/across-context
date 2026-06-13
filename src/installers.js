@@ -53,17 +53,14 @@ export async function installHostPlugin(options = {}) {
   const sourceRoot = resolve(options.sourceRoot || PACKAGE_ROOT);
   const env = options.env || process.env;
   const acrossHome = resolve(options.acrossHome || ecosystemHome(env));
-  const legacyPrefix = options.prefix && !options.pluginRoot && !options.acrossHome;
   const root = resolve(
     options.pluginRoot
-    || options.prefix
     || env.ACROSS_PLUGIN_HOME
-    || env.ACROSS_AGENTS_PLUGIN_HOME
     || pluginRoot({ ...env, ACROSS_HOME: acrossHome })
   );
   const binDir = resolve(
     options.binDir
-    || (legacyPrefix ? join(root, "bin") : ecosystemBinDir({ ...env, ACROSS_HOME: acrossHome }))
+    || ecosystemBinDir({ ...env, ACROSS_HOME: acrossHome })
   );
   const installDir = join(root, COMPONENT_ID);
   const commandPath = join(binDir, "across-context");
@@ -110,9 +107,7 @@ export async function uninstallHostPlugin(options = {}) {
   const acrossHome = resolve(options.acrossHome || ecosystemHome(env));
   const root = resolve(
     options.pluginRoot
-    || options.prefix
     || env.ACROSS_PLUGIN_HOME
-    || env.ACROSS_AGENTS_PLUGIN_HOME
     || pluginRoot({ ...env, ACROSS_HOME: acrossHome })
   );
   const binDir = resolve(options.binDir || ecosystemBinDir({ ...env, ACROSS_HOME: acrossHome }));

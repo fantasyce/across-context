@@ -49,3 +49,35 @@ test("install host-plugin copies the runtime into a hidden plugin directory", as
   assert.doesNotMatch(JSON.stringify(manifest), new RegExp(process.cwd().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   assert.doesNotMatch(JSON.stringify(manifest), /Documents\/projects/);
 });
+
+test("install host-plugin ignores legacy ACROSS_AGENTS_PLUGIN_HOME", async () => {
+  const home = await mkdtemp(join(tmpdir(), "across-context-host-home-"));
+  const acrossHome = await mkdtemp(join(tmpdir(), "across-home-"));
+  const legacyPluginHome = await mkdtemp(join(tmpdir(), "across-agents-plugin-home-"));
+  const env = {
+    ...process.env,
+    ACROSS_CONTEXT_HOME: home,
+    ACROSS_HOME: acrossHome,
+    ACROSS_PLUGIN_HOME: "",
+    ACROSS_AGENTS_PLUGIN_HOME: legacyPluginHome
+  };
+
+  const { stdout } = await exec("node", [cli, "install", "host-plugin"], { env });
+
+  assert.match(stdout, new RegExp(join(acrossHome, "plugins", "across-context").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  await assert.rejects(
+    stat(join(legacyPluginHome, "across-context")),
+    /ENOENT/
+  );
+});
+
+test("install host-plugin rejects legacy --prefix", async () => {
+  const acrossHome = await mkdtemp(join(tmpdir(), "across-home-"));
+  const legacyPrefix = await mkdtemp(join(tmpdir(), "across-context-prefix-"));
+  const env = { ...process.env, ACROSS_HOME: acrossHome };
+
+  await assert.rejects(
+    exec("node", [cli, "install", "host-plugin", "--prefix", legacyPrefix], { env }),
+    /--prefix is no longer supported/
+  );
+});

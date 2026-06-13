@@ -273,11 +273,13 @@ async function main(argv) {
     }
     const parsed = parseArgs(installRest);
     if (target === "host-plugin") {
+      if (parsed.prefix) {
+        throw new Error("--prefix is no longer supported for host-plugin installs; use --across-home or --plugin-root.");
+      }
       const result = await installHostPlugin({
         acrossHome: parsed["across-home"],
         pluginRoot: parsed["plugin-root"],
-        binDir: parsed["bin-dir"],
-        prefix: parsed.prefix
+        binDir: parsed["bin-dir"]
       });
       console.log(`Installed host plugin command at ${result.commandPath}`);
       console.log(`runtime: ${result.installDir}`);
@@ -302,11 +304,13 @@ async function main(argv) {
       throw new Error("Usage: across-context uninstall host-plugin [--across-home path]");
     }
     const parsed = parseArgs(uninstallRest);
+    if (parsed.prefix) {
+      throw new Error("--prefix is no longer supported for host-plugin uninstalls; use --across-home or --plugin-root.");
+    }
     const result = await uninstallHostPlugin({
       acrossHome: parsed["across-home"],
       pluginRoot: parsed["plugin-root"],
-      binDir: parsed["bin-dir"],
-      prefix: parsed.prefix
+      binDir: parsed["bin-dir"]
     });
     console.log(`Removed host plugin command at ${result.commandPath}`);
     console.log(`runtime: ${result.installDir}`);
