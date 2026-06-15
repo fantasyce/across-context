@@ -431,9 +431,10 @@ Commands:
   project learn [path]                  Learn project commands and metadata
   export <agents|claude|cursor|markdown> [--project path] [--stdout]
   install <codex|cursor|claude-code> [--project path] [--stdout]
-  install host-plugin [--across-home path]
+  install host-plugin [--across-home path] [--plugin-root path] [--bin-dir path]
                                         Install runtime for host apps under ~/.across
-  uninstall host-plugin [--across-home path]
+                                        --plugin-root/--bin-dir are development-only overrides
+  uninstall host-plugin [--across-home path] [--plugin-root path] [--bin-dir path]
                                         Remove managed host runtime while preserving data
   setup [--all] [--yes] [--no-external] [--project path]
   doctor [--project path]               Verify vault, project files, and local agent availability
