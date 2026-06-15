@@ -55,7 +55,6 @@ export async function installHostPlugin(options = {}) {
   const acrossHome = resolve(options.acrossHome || ecosystemHome(env));
   const root = resolve(
     options.pluginRoot
-    || env.ACROSS_PLUGIN_HOME
     || pluginRoot({ ...env, ACROSS_HOME: acrossHome })
   );
   const binDir = resolve(
@@ -66,6 +65,9 @@ export async function installHostPlugin(options = {}) {
   const commandPath = join(binDir, "across-context");
   const sourceReal = await realpathOrResolve(sourceRoot);
   const installReal = await realpathOrResolve(installDir);
+  assertHostPluginRuntimePathAllowed("ACROSS_HOME", acrossHome, env);
+  assertHostPluginRuntimePathAllowed("ACROSS_PLUGIN_HOME", root, env);
+  assertHostPluginRuntimePathAllowed("ACROSS_BIN_HOME", binDir, env);
 
   if (sourceReal !== installReal) {
     const tmpDir = `${installDir}.tmp-${process.pid}-${Date.now()}`;
@@ -107,12 +109,14 @@ export async function uninstallHostPlugin(options = {}) {
   const acrossHome = resolve(options.acrossHome || ecosystemHome(env));
   const root = resolve(
     options.pluginRoot
-    || env.ACROSS_PLUGIN_HOME
     || pluginRoot({ ...env, ACROSS_HOME: acrossHome })
   );
   const binDir = resolve(options.binDir || ecosystemBinDir({ ...env, ACROSS_HOME: acrossHome }));
   const installDir = join(root, COMPONENT_ID);
   const commandPath = join(binDir, "across-context");
+  assertHostPluginRuntimePathAllowed("ACROSS_HOME", acrossHome, env);
+  assertHostPluginRuntimePathAllowed("ACROSS_PLUGIN_HOME", root, env);
+  assertHostPluginRuntimePathAllowed("ACROSS_BIN_HOME", binDir, env);
 
   await rm(commandPath, { force: true });
   await rm(installDir, { recursive: true, force: true });
@@ -152,4 +156,34 @@ async function realpathOrResolve(path) {
 
 function shellQuote(value) {
   return `'${String(value).replaceAll("'", "'\\''")}'`;
+}
+
+function assertHostPluginRuntimePathAllowed(name, value, env) {
+  if (!isProductMode(env) || isDeveloperMode(env)) return;
+  if (!containsProtectedUserReference(value, env)) return;
+  throw new Error(`${name} points to a protected user directory; use ~/.across or set ACROSS_CONTEXT_DEVELOPER_MODE=1 for source-checkout development.`);
+}
+
+function isProductMode(env) {
+  return truthy(env.ACROSS_CONTEXT_PRODUCT_MODE) || truthy(env.ACROSS_AGENTS_PRODUCT_MODE);
+}
+
+function isDeveloperMode(env) {
+  return truthy(env.ACROSS_CONTEXT_DEVELOPER_MODE) || truthy(env.ACROSS_AGENTS_DEVELOPER_MODE);
+}
+
+function truthy(value) {
+  return ["1", "true", "yes", "on", "y"].includes(String(value || "").trim().toLowerCase());
+}
+
+function containsProtectedUserReference(value, env) {
+  const expanded = resolve(String(value || "").replace(/^~(?=$|\/)/, env.HOME || process.env.HOME || ""));
+  const home = resolve(env.HOME || process.env.HOME || "");
+  const protectedRoots = ["Documents", "Desktop", "Downloads"].map((name) => join(home, name));
+  if (protectedRoots.some((root) => pathIsAtOrBelow(expanded, root))) return true;
+  return /(?:~|\/Users\/[^/]+)\/(Documents|Desktop|Downloads)(?:\/|$)/.test(String(value || ""));
+}
+
+function pathIsAtOrBelow(path, root) {
+  return path === root || path.startsWith(`${root}/`);
 }

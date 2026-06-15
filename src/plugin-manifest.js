@@ -13,10 +13,13 @@ const PACKAGE_ROOT = dirname(fileURLToPath(new URL("../package.json", import.met
 
 export async function renderPluginManifest(options = {}) {
   const env = options.env || process.env;
-  const acrossHome = resolve(options.acrossHome || ecosystemHome(env));
-  const envWithHome = { ...env, ACROSS_HOME: acrossHome };
-  const pluginRootPath = resolve(options.pluginRoot || pluginRoot(envWithHome));
-  const binDir = resolve(options.binDir || ecosystemBinDir(envWithHome));
+  const homeEnv = options.acrossHome ? { ...env, ACROSS_HOME: options.acrossHome } : env;
+  const acrossHome = resolve(ecosystemHome(homeEnv));
+  const envWithHome = { ...homeEnv, ACROSS_HOME: acrossHome };
+  const pluginEnv = options.pluginRoot ? { ...envWithHome, ACROSS_PLUGIN_HOME: options.pluginRoot } : envWithHome;
+  const binEnv = options.binDir ? { ...envWithHome, ACROSS_BIN_HOME: options.binDir } : envWithHome;
+  const pluginRootPath = resolve(pluginRoot(pluginEnv));
+  const binDir = resolve(ecosystemBinDir(binEnv));
   const installDir = resolve(options.installDir || join(pluginRootPath, COMPONENT_ID));
   const commandPath = resolve(options.commandPath || join(binDir, "across-context"));
   const packageJson = await readPackageJson(options.sourceRoot || PACKAGE_ROOT);

@@ -81,3 +81,114 @@ test("install host-plugin rejects legacy --prefix", async () => {
     /--prefix is no longer supported/
   );
 });
+
+test("install host-plugin rejects protected roots in product mode", async () => {
+  const home = await mkdtemp(join(tmpdir(), "across-context-product-home-"));
+  const acrossHome = join(home, ".across");
+  const protectedRoot = join(home, "Documents", "projects", "across-context-plugin-root");
+  const protectedBin = join(home, "Documents", "projects", "across-context-bin");
+  const env = {
+    ...process.env,
+    HOME: home,
+    ACROSS_CONTEXT_PRODUCT_MODE: "1",
+    ACROSS_HOME: acrossHome
+  };
+
+  await assert.rejects(
+    exec("node", [
+      cli,
+      "install",
+      "host-plugin",
+      "--across-home",
+      acrossHome,
+      "--plugin-root",
+      protectedRoot,
+      "--bin-dir",
+      protectedBin
+    ], { env }),
+    /protected user directory/
+  );
+});
+
+test("install host-plugin ignores protected env roots in product mode", async () => {
+  const home = await mkdtemp(join(tmpdir(), "across-context-product-env-home-"));
+  const protectedRoot = join(home, "Documents", "projects", "across-context-plugin-root");
+  const protectedBin = join(home, "Documents", "projects", "across-context-bin");
+  const env = {
+    ...process.env,
+    HOME: home,
+    ACROSS_CONTEXT_PRODUCT_MODE: "1",
+    ACROSS_PLUGIN_HOME: protectedRoot,
+    ACROSS_BIN_HOME: protectedBin
+  };
+
+  const { stdout } = await exec("node", [cli, "install", "host-plugin"], { env });
+
+  assert.match(stdout, new RegExp(join(home, ".across", "plugins", "across-context").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.match(await readFile(join(home, ".across", "bin", "across-context"), "utf8"), new RegExp(join(home, ".across", "plugins", "across-context").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  await assert.rejects(
+    stat(join(protectedRoot, "across-context")),
+    /ENOENT/
+  );
+  await assert.rejects(
+    stat(join(protectedBin, "across-context")),
+    /ENOENT/
+  );
+});
+
+test("install host-plugin accepts similarly named user directories in product mode", async () => {
+  const home = await mkdtemp(join(tmpdir(), "across-context-adjacent-product-home-"));
+  const acrossHome = join(home, ".across");
+  const pluginRoot = join(home, "DocumentsArchive", "across-context-plugin-root");
+  const binDir = join(home, "DownloadsCache", "across-context-bin");
+  const env = {
+    ...process.env,
+    HOME: home,
+    ACROSS_CONTEXT_PRODUCT_MODE: "1",
+    ACROSS_HOME: acrossHome
+  };
+
+  await exec("node", [
+    cli,
+    "install",
+    "host-plugin",
+    "--across-home",
+    acrossHome,
+    "--plugin-root",
+    pluginRoot,
+    "--bin-dir",
+    binDir
+  ], { env });
+
+  assert.equal(JSON.parse(await readFile(join(pluginRoot, "across-context", "manifest.json"), "utf8")).id, "across-context");
+  assert.match(await readFile(join(binDir, "across-context"), "utf8"), new RegExp(pluginRoot.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+});
+
+test("install host-plugin allows protected roots only in developer mode", async () => {
+  const home = await mkdtemp(join(tmpdir(), "across-context-dev-home-"));
+  const acrossHome = join(home, ".across");
+  const protectedRoot = join(home, "Documents", "projects", "across-context-plugin-root");
+  const protectedBin = join(home, "Documents", "projects", "across-context-bin");
+  const env = {
+    ...process.env,
+    HOME: home,
+    ACROSS_CONTEXT_PRODUCT_MODE: "1",
+    ACROSS_CONTEXT_DEVELOPER_MODE: "1",
+    ACROSS_HOME: acrossHome
+  };
+
+  await exec("node", [
+    cli,
+    "install",
+    "host-plugin",
+    "--across-home",
+    acrossHome,
+    "--plugin-root",
+    protectedRoot,
+    "--bin-dir",
+    protectedBin
+  ], { env });
+
+  assert.match(await readFile(join(protectedBin, "across-context"), "utf8"), new RegExp(protectedRoot.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.equal(JSON.parse(await readFile(join(protectedRoot, "across-context", "manifest.json"), "utf8")).id, "across-context");
+});

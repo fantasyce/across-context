@@ -24,6 +24,11 @@ export function renderAgentLoopMemoryPolicy() {
         mcpTools: ["review_pending_memories", "approve_memory"]
       }
     },
+    hostLoopControls: {
+      actions: ["cancel", "reject_action", "retry_step"],
+      events: "read from the orchestrator loop event stream",
+      ownership: "Across Context records memory candidates only; the orchestrator owns loop control state."
+    },
     hooks: [
       {
         id: "pre_loop_search",
@@ -69,6 +74,7 @@ export function renderAgentLoopMemoryPromptText() {
     "Pre-loop search, step context attach, and post-loop pending summary are the only default hooks.",
     hooks,
     "",
+    `Host loop controls: ${policy.hostLoopControls.actions.join(", ")}.`,
     `Default write status: ${policy.defaultWriteStatus}.`,
     "Do not persist secrets, full transcripts, large logs, screenshots, or one-off observations.",
     "Treat memory writes as candidates until a human or host policy approves them."

@@ -66,6 +66,8 @@ test("MCP server definition exposes resources and prompts", async () => {
   assert.equal(policy.defaultWriteStatus, "pending");
   assert.equal(policy.adapterContract.search.activeStatus, "active");
   assert.equal(policy.adapterContract.writeCandidate.defaultStatus, "pending");
+  assert.deepEqual(policy.hostLoopControls.actions, ["cancel", "reject_action", "retry_step"]);
+  assert.equal(policy.hostLoopControls.events, "read from the orchestrator loop event stream");
   assert.equal(policy.hooks[0].id, "pre_loop_search");
 });
 

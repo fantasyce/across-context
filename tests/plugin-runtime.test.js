@@ -58,6 +58,33 @@ test("plugin-status reports managed install availability", async () => {
   assert.equal(uninstalled.available, false);
 });
 
+test("product plugin-status ignores protected explicit runtime roots", async () => {
+  const home = await mkdtemp(join(tmpdir(), "across-context-product-home-"));
+  const protectedRoot = join(home, "Documents", "projects", "across-context-runtime");
+  const env = {
+    ...process.env,
+    HOME: home,
+    ACROSS_CONTEXT_PRODUCT_MODE: "1"
+  };
+
+  const status = JSON.parse((await exec("node", [
+    cli,
+    "plugin-status",
+    "--json",
+    "--across-home",
+    join(protectedRoot, "home"),
+    "--plugin-root",
+    join(protectedRoot, "plugins"),
+    "--bin-dir",
+    join(protectedRoot, "bin")
+  ], { env })).stdout);
+
+  assert.equal(status.command, join(home, ".across", "bin", "across-context"));
+  assert.equal(status.dataPath, join(home, ".across", "data", "across-context"));
+  assert.equal(status.install.installDir, join(home, ".across", "plugins", "across-context"));
+  assert.ok(!JSON.stringify(status).includes("Documents"));
+});
+
 test("health initializes the local vault without requiring agent setup", async () => {
   const acrossHome = await mkdtemp(join(tmpdir(), "across-context-health-home-"));
   const env = { ...process.env, ACROSS_HOME: acrossHome };
