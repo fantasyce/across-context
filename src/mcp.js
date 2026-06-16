@@ -7,7 +7,7 @@ import { renderAgentLoopMemoryPolicy, renderAgentLoopMemoryPromptText } from "./
 export function createContextMcpServerDefinition(vault) {
   return {
     name: "across-context",
-    version: "0.7.4",
+    version: "0.7.5",
     resources: [
       {
         uri: "across-context://agent-card",
