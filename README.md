@@ -55,6 +55,12 @@ Across Context has three layers:
 This is the important product idea: MCP alone is not enough. Agents also need
 operating instructions, and automatic memory needs guardrails.
 
+### New in v0.7.6
+
+- Release alignment for Across Orchestrator `v0.6.8` and Across Agents
+  Assistant `v0.8.9`; the memory provider contract remains stable while hosts
+  pick up corrected Agent Loop terminal-state handling from Orchestrator.
+
 ### New in v0.7.5
 
 - Release alignment for host-neutral Across Orchestrator `v0.6.7` and Across
@@ -148,7 +154,7 @@ Or install from a local release tarball:
 
 ```bash
 npm pack
-npm install -g ./across-context-0.7.5.tgz
+npm install -g ./across-context-0.7.6.tgz
 ```
 
 Verify:
@@ -432,6 +438,12 @@ across-context setup --all --yes
 - 生成 `CLAUDE.md`
 - 生成 Cursor MCP 配置和规则
 - 注入自动读写记忆的行为规则
+
+### v0.7.6 新能力
+
+- 对齐 Across Orchestrator `v0.6.8` 和 Across Agents Assistant `v0.8.9`
+  发版；记忆提供方协议保持稳定，宿主会从 Orchestrator 获得修正后的
+  Agent Loop 终态处理。
 
 ### v0.7.5 新能力
 
