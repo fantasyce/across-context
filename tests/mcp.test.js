@@ -62,10 +62,12 @@ test("MCP server definition exposes resources and prompts", async () => {
 
   const policyResource = await definition.readResource("across-context://agent-loop-memory-policy", {});
   const policy = JSON.parse(policyResource.contents[0].text);
-  assert.equal(policy.schemaVersion, "0.2");
+  assert.equal(policy.schemaVersion, "0.3");
   assert.equal(policy.defaultWriteStatus, "pending");
   assert.equal(policy.adapterContract.search.activeStatus, "active");
   assert.equal(policy.adapterContract.writeCandidate.defaultStatus, "pending");
+  assert.equal(policy.adapterContract.writeCandidate.structuredSummary.schema, "agent-loop-memory-candidate/1.0");
+  assert.ok(policy.adapterContract.writeCandidate.structuredSummary.fields.includes("failure_types"));
   assert.deepEqual(policy.hostLoopControls.actions, ["cancel", "reject_action", "retry_step"]);
   assert.equal(policy.hostLoopControls.events, "read from the orchestrator loop event stream");
   assert.equal(policy.hooks[0].id, "pre_loop_search");

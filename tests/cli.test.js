@@ -82,6 +82,7 @@ test("CLI reviews pending memories, exports agent card, and runs hooks", async (
   assert.equal(JSON.parse(card.stdout).capabilities.memory, true);
   assert.equal(JSON.parse(card.stdout).capabilities.agentLoopMemoryHooks, true);
   assert.equal(JSON.parse(loopPolicy.stdout).defaultWriteStatus, "pending");
+  assert.equal(JSON.parse(loopPolicy.stdout).adapterContract.writeCandidate.structuredSummary.schema, "agent-loop-memory-candidate/1.0");
   assert.equal(JSON.parse(loopPolicy.stdout).hooks[0].id, "pre_loop_search");
   assert.match(team.stdout, /deterministic task-start/);
   assert.match(hook.stdout, /deterministic task-start/);
