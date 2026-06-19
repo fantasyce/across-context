@@ -1,6 +1,6 @@
 export function renderAgentLoopMemoryPolicy() {
   return {
-    schemaVersion: "0.2",
+    schemaVersion: "0.3",
     provider: "across-context",
     defaultReadStatus: "active",
     defaultWriteStatus: "pending",
@@ -12,10 +12,25 @@ export function renderAgentLoopMemoryPolicy() {
         includesGlobal: true
       },
       writeCandidate: {
-        cli: "across-context remember <summary> --scope project --project <path> --status pending --json",
+        cli: "across-context remember <summary-json-or-text> --scope project --project <path> --status pending --json",
         mcpTool: "remember_context",
         defaultStatus: "pending",
-        defaultType: "session"
+        defaultType: "session",
+        structuredSummary: {
+          schema: "agent-loop-memory-candidate/1.0",
+          format: "compact JSON text",
+          fields: [
+            "loop_id",
+            "goal",
+            "outcome",
+            "decisions",
+            "artifacts",
+            "commands",
+            "failure_types",
+            "remediation_outcomes",
+            "memory_refs"
+          ]
+        }
       },
       review: {
         cli: "across-context pending --project <path> --json",
@@ -77,6 +92,7 @@ export function renderAgentLoopMemoryPromptText() {
     `Host loop controls: ${policy.hostLoopControls.actions.join(", ")}.`,
     `Default write status: ${policy.defaultWriteStatus}.`,
     "Do not persist secrets, full transcripts, large logs, screenshots, or one-off observations.",
+    "Post-loop writes may be compact JSON summaries using schema agent-loop-memory-candidate/1.0.",
     "Treat memory writes as candidates until a human or host policy approves them."
   ].join("\n");
 }
