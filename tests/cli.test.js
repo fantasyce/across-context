@@ -114,3 +114,34 @@ test("CLI exposes JSON memory lifecycle operations for host apps", async () => {
   const forgotten = JSON.parse((await exec("node", [cli, "forget", memory.id, "--json"], { env })).stdout);
   assert.equal(forgotten.forgotten, 1);
 });
+
+test("CLI exposes Agent Loop memory metrics without raw candidate text", async () => {
+  const home = await mkdtemp(join(tmpdir(), "across-context-cli-loop-metrics-home-"));
+  const project = await mkdtemp(join(tmpdir(), "across-context-cli-loop-metrics-project-"));
+  const env = { ...process.env, ACROSS_CONTEXT_HOME: home };
+  const candidate = JSON.stringify({
+    schema_version: "agent-loop-memory-candidate/1.0",
+    loop_id: "loop-cli-metrics",
+    goal: "Do not expose this candidate goal",
+    outcome: "completed"
+  });
+
+  await exec("node", [
+    cli,
+    "remember",
+    candidate,
+    "--scope",
+    "project",
+    "--project",
+    project,
+    "--type",
+    "session",
+    "--status",
+    "pending"
+  ], { env });
+  const metrics = JSON.parse((await exec("node", [cli, "loop-memory-metrics", "--all-projects", "--json"], { env })).stdout);
+
+  assert.equal(metrics.schema_version, "agent-loop-memory-metrics/1.0");
+  assert.equal(metrics.totals.pending_count, 1);
+  assert.doesNotMatch(JSON.stringify(metrics), /Do not expose this candidate goal/);
+});

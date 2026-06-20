@@ -38,6 +38,12 @@ export function createContextMcpServerDefinition(vault) {
         name: "Agent Loop Memory Policy",
         description: "Memory hook policy for durable agent loop runtimes.",
         mimeType: "application/json"
+      },
+      {
+        uri: "across-context://agent-loop-memory-metrics",
+        name: "Agent Loop Memory Metrics",
+        description: "Aggregate lifecycle metrics for structured Agent Loop memory candidates.",
+        mimeType: "application/json"
       }
     ],
     prompts: [
@@ -204,6 +210,24 @@ export function createContextMcpServerDefinition(vault) {
         )
       },
       {
+        name: "get_agent_loop_memory_metrics",
+        description: "Return aggregate Agent Loop memory candidate lifecycle metrics without raw memory text.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            projectRoot: { type: "string" },
+            includeProjects: { type: "boolean", default: false }
+          }
+        },
+        handler: async (args) => {
+          const metrics = await vault.agentLoopMemoryMetrics({
+            projectRoot: args.projectRoot,
+            includeProjects: Boolean(args.includeProjects)
+          });
+          return textResult(JSON.stringify(metrics, null, 2), { metrics });
+        }
+      },
+      {
         name: "export_agent_instructions",
         description: "Write AGENTS.md, CLAUDE.md, Cursor rules, or Markdown context exports for a project.",
         inputSchema: {
@@ -252,6 +276,13 @@ async function readResource(vault, uri, args = {}) {
   }
   if (uri === "across-context://agent-loop-memory-policy") {
     return resourceResult(uri, "application/json", JSON.stringify(renderAgentLoopMemoryPolicy(), null, 2));
+  }
+  if (uri === "across-context://agent-loop-memory-metrics") {
+    const metrics = await vault.agentLoopMemoryMetrics({
+      projectRoot: args.projectRoot,
+      includeProjects: Boolean(args.includeProjects)
+    });
+    return resourceResult(uri, "application/json", JSON.stringify(metrics, null, 2));
   }
   throw new Error(`Unknown resource: ${uri}`);
 }

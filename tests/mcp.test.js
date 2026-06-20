@@ -17,6 +17,7 @@ test("MCP server definition exposes memory tools backed by the vault", async () 
       "approve_memory",
       "export_agent_instructions",
       "get_agent_card",
+      "get_agent_loop_memory_metrics",
       "get_agent_loop_memory_policy",
       "get_project_context",
       "remember_context",
@@ -47,6 +48,7 @@ test("MCP server definition exposes resources and prompts", async () => {
   assert.ok(definition.resources.some((resource) => resource.uri === "across-context://agent-card"));
   assert.ok(definition.resources.some((resource) => resource.uri === "across-context://stats"));
   assert.ok(definition.resources.some((resource) => resource.uri === "across-context://agent-loop-memory-policy"));
+  assert.ok(definition.resources.some((resource) => resource.uri === "across-context://agent-loop-memory-metrics"));
   assert.ok(definition.prompts.some((prompt) => prompt.name === "task-start-context"));
   assert.ok(definition.prompts.some((prompt) => prompt.name === "agent-loop-memory-policy"));
 
@@ -71,6 +73,36 @@ test("MCP server definition exposes resources and prompts", async () => {
   assert.deepEqual(policy.hostLoopControls.actions, ["cancel", "reject_action", "retry_step"]);
   assert.equal(policy.hostLoopControls.events, "read from the orchestrator loop event stream");
   assert.equal(policy.hooks[0].id, "pre_loop_search");
+
+  const metricsResource = await definition.readResource("across-context://agent-loop-memory-metrics", {});
+  const metrics = JSON.parse(metricsResource.contents[0].text);
+  assert.equal(metrics.schema_version, "agent-loop-memory-metrics/1.0");
+});
+
+test("MCP exposes Agent Loop memory metrics without raw memory text", async () => {
+  const home = await mkdtemp(join(tmpdir(), "across-context-mcp-loop-metrics-"));
+  const vault = new ContextVault({ home });
+  const definition = createContextMcpServerDefinition(vault);
+  const candidate = JSON.stringify({
+    schema_version: "agent-loop-memory-candidate/1.0",
+    loop_id: "loop-mcp-metrics",
+    goal: "Raw MCP candidate text must stay out",
+    outcome: "completed"
+  });
+  await vault.remember({
+    scope: "global",
+    type: "session",
+    text: candidate,
+    status: "pending",
+    source: "agent-loop"
+  });
+  const tool = definition.tools.find((item) => item.name === "get_agent_loop_memory_metrics");
+
+  const result = await tool.handler({});
+  const raw = JSON.stringify(result);
+
+  assert.equal(result.structuredContent.metrics.totals.pending_count, 1);
+  assert.doesNotMatch(raw, /Raw MCP candidate text must stay out/);
 });
 
 test("MCP review_pending_memories includes project memories when no project is specified", async () => {

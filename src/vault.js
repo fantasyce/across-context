@@ -13,6 +13,8 @@ import {
   stableProjectId
 } from "./paths.js";
 
+const AGENT_LOOP_MEMORY_CANDIDATE_SCHEMA = "agent-loop-memory-candidate/1.0";
+
 export class ContextVault {
   constructor(options = {}) {
     this.env = options.env || process.env;
@@ -23,7 +25,9 @@ export class ContextVault {
   async init() {
     await mkdir(join(this.home, "global"), { recursive: true });
     await mkdir(join(this.home, "projects"), { recursive: true });
+    await mkdir(join(this.home, "events"), { recursive: true });
     await this.#ensureJsonl(join(this.home, "global", "memories.jsonl"));
+    await this.#ensureJsonl(join(this.home, "events", "memory-policy.jsonl"));
     return { home: this.home };
   }
 
@@ -53,9 +57,11 @@ export class ContextVault {
     }, existing);
 
     if (decision.status === "deny") {
+      await this.#recordPolicyEvent(input, decision);
       throw new Error(`Memory rejected: ${decision.reason}`);
     }
     if (decision.status === "duplicate") {
+      await this.#recordPolicyEvent(input, decision);
       return {
         ...decision.entry,
         duplicateOf: decision.matchedId,
@@ -96,6 +102,7 @@ export class ContextVault {
     }
 
     await appendFile(file, `${JSON.stringify(dropUndefined(entry))}\n`, "utf8");
+    await this.#recordPolicyEvent(input, decision, entry);
     return dropUndefined(entry);
   }
 
@@ -140,6 +147,67 @@ export class ContextVault {
     };
   }
 
+  async agentLoopMemoryMetrics(options = {}) {
+    await this.init();
+    const memories = await this.listMemories({
+      projectRoot: options.projectRoot,
+      includeGlobal: true,
+      includeProjects: Boolean(options.includeProjects)
+    });
+    const candidates = memories.filter((entry) => agentLoopCandidateSchema(entry.text) === AGENT_LOOP_MEMORY_CANDIDATE_SCHEMA);
+    const policyEvents = (await readJsonl(this.#policyEventFile()))
+      .filter((event) => event.candidateSchema === AGENT_LOOP_MEMORY_CANDIDATE_SCHEMA);
+    const byStatus = countBy(candidates.map((entry) => ({ ...entry, status: entry.status || "active" })), "status");
+    const approvedCount = (byStatus.active || 0) + (byStatus.pinned || 0);
+    const duplicateCount = policyEvents.filter((event) => event.policyStatus === "duplicate").length;
+    const deniedEvents = policyEvents.filter((event) => event.policyStatus === "deny");
+    const sensitiveDeniedCount = deniedEvents.filter(isSensitivePolicyEvent).length;
+    const forgottenCount = policyEvents.filter((event) => event.policyStatus === "forgotten").length;
+    const dimensions = {
+      candidate_schema: AGENT_LOOP_MEMORY_CANDIDATE_SCHEMA,
+      source: "post_loop_pending_summary",
+      scope: options.projectRoot ? "project" : "all"
+    };
+    const metric = (name, value, extra = {}) => ({
+      schema_version: "agent-loop-memory-metric/1.0",
+      metric: name,
+      value,
+      unit: "count",
+      dimensions: dropUndefined({ ...dimensions, ...extra })
+    });
+    return {
+      schema_version: "agent-loop-memory-metrics/1.0",
+      candidate_schema: AGENT_LOOP_MEMORY_CANDIDATE_SCHEMA,
+      home: this.home,
+      projectRoot: options.projectRoot,
+      includeProjects: Boolean(options.includeProjects),
+      totals: {
+        candidate_count: candidates.length,
+        pending_count: byStatus.pending || 0,
+        approved_count: approvedCount,
+        archived_count: byStatus.archived || 0,
+        expired_count: byStatus.expired || 0,
+        forgotten_count: forgottenCount,
+        duplicate_reused_count: duplicateCount,
+        denied_count: deniedEvents.length,
+        sensitive_denied_count: sensitiveDeniedCount
+      },
+      byStatus,
+      byScope: countBy(candidates, "scope"),
+      metrics: [
+        metric("memory_candidate.produced_count", candidates.length + forgottenCount),
+        metric("memory_candidate.pending_count", byStatus.pending || 0, { status: "pending" }),
+        metric("memory_candidate.approved_count", approvedCount, { status: "active_or_pinned" }),
+        metric("memory_candidate.archived_count", byStatus.archived || 0, { status: "archived" }),
+        metric("memory_candidate.expired_count", byStatus.expired || 0, { status: "expired" }),
+        metric("memory_candidate.forgotten_count", forgottenCount),
+        metric("memory_candidate.duplicate_reused_count", duplicateCount),
+        metric("memory_candidate.denied_count", deniedEvents.length),
+        metric("memory_candidate.sensitive_denied_count", sensitiveDeniedCount)
+      ]
+    };
+  }
+
   async forget(id) {
     await this.init();
     const targetId = String(id || "").trim();
@@ -150,8 +218,12 @@ export class ContextVault {
     let forgotten = 0;
     for (const file of await this.#memoryFiles()) {
       const memories = await readJsonl(file);
+      const forgottenCandidates = [];
       const kept = memories.filter((entry) => {
         if (entry.id === targetId) {
+          if (agentLoopCandidateSchema(entry.text) === AGENT_LOOP_MEMORY_CANDIDATE_SCHEMA) {
+            forgottenCandidates.push(entry);
+          }
           forgotten += 1;
           return false;
         }
@@ -159,6 +231,15 @@ export class ContextVault {
       });
       if (kept.length !== memories.length) {
         await writeJsonl(file, kept);
+      }
+      for (const entry of forgottenCandidates) {
+        await this.#recordPolicyEvent({
+          text: entry.text,
+          scope: entry.scope,
+          type: entry.type,
+          projectRoot: entry.projectRoot,
+          source: "forget"
+        }, { status: "forgotten", reason: "Memory was forgotten." }, entry);
       }
     }
     return { forgotten };
@@ -312,6 +393,35 @@ export class ContextVault {
     }
   }
 
+  #policyEventFile() {
+    return join(this.home, "events", "memory-policy.jsonl");
+  }
+
+  async #recordPolicyEvent(input, decision, entry) {
+    const candidateSchema = agentLoopCandidateSchema(input.text || entry?.text);
+    if (candidateSchema !== AGENT_LOOP_MEMORY_CANDIDATE_SCHEMA) {
+      return;
+    }
+    const projectRoot = input.projectRoot || entry?.projectRoot;
+    const event = dropUndefined({
+      id: `memory_policy_${newMemoryId().slice(4)}`,
+      candidateSchema,
+      policyStatus: decision.status,
+      policyCategory: decision.category,
+      sensitive: decision.sensitive === true ? true : undefined,
+      reason: decision.reason,
+      scope: input.scope || entry?.scope,
+      type: input.type || entry?.type,
+      memoryStatus: entry?.status || decision.memoryStatus,
+      memoryId: entry?.id,
+      duplicateOf: decision.matchedId,
+      projectId: projectRoot ? stableProjectId(resolve(projectRoot)) : entry?.projectId,
+      source: input.source,
+      createdAt: nowIso()
+    });
+    await appendFile(this.#policyEventFile(), `${JSON.stringify(event)}\n`, "utf8");
+  }
+
   async #memoryFiles(projectRoot) {
     const files = [join(this.home, "global", "memories.jsonl")];
     if (projectRoot) {
@@ -364,6 +474,25 @@ function countBy(entries, key) {
     counts[value] = (counts[value] || 0) + 1;
     return counts;
   }, {});
+}
+
+function agentLoopCandidateSchema(text) {
+  try {
+    const parsed = JSON.parse(String(text || ""));
+    return parsed && typeof parsed === "object" ? parsed.schema_version || parsed.schemaVersion : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function isSensitivePolicyEvent(event) {
+  if (event.sensitive === true) {
+    return true;
+  }
+  if (String(event.policyCategory || "").toLowerCase() === "sensitive") {
+    return true;
+  }
+  return /\b(secret|credential|token|password|passwd|cookie|private key)\b/i.test(String(event.reason || ""));
 }
 
 function normalizeStatus(status) {

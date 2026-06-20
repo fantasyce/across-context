@@ -13,6 +13,8 @@ test("MemoryPolicyEngine denies sensitive secrets before writing", () => {
   }, []);
 
   assert.equal(decision.status, "deny");
+  assert.equal(decision.category, "sensitive");
+  assert.equal(decision.sensitive, true);
   assert.match(decision.reason, /secret/i);
 });
 

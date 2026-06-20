@@ -186,6 +186,16 @@ async function main(argv) {
     return;
   }
 
+  if (command === "loop-memory-metrics") {
+    const parsed = parseArgs(rest);
+    const metrics = await vault.agentLoopMemoryMetrics({
+      projectRoot: parsed.project,
+      includeProjects: Boolean(parsed["all-projects"])
+    });
+    console.log(parsed.json ? JSON.stringify(metrics, null, 2) : formatLoopMemoryMetrics(metrics));
+    return;
+  }
+
   if (command === "plugin-manifest") {
     const parsed = parseArgs(rest);
     const manifest = await renderPluginManifest({
@@ -422,6 +432,8 @@ Commands:
   compact [--project path]              Remove duplicate records from the vault
   agent-card [--json]                   Print the Across Context agent card
   loop-memory-policy [--json]           Print agent-loop memory hook policy
+  loop-memory-metrics [--project path|--all-projects] [--json]
+                                        Print aggregate agent-loop memory candidate metrics
   plugin-manifest [--json]              Print the Across plugin manifest
   plugin-status [--json]                Print host-install and protocol status
   health [--json]                       Probe vault health without external agent setup
@@ -449,6 +461,22 @@ function formatStats(stats) {
   lines.push(`by scope: ${formatCounts(stats.byScope)}`);
   lines.push(`by type: ${formatCounts(stats.byType)}`);
   return lines.join("\n");
+}
+
+function formatLoopMemoryMetrics(metrics) {
+  const totals = metrics.totals || {};
+  return [
+    `schema: ${metrics.schema_version}`,
+    `candidate schema: ${metrics.candidate_schema}`,
+    `candidate count: ${totals.candidate_count || 0}`,
+    `pending: ${totals.pending_count || 0}`,
+    `approved: ${totals.approved_count || 0}`,
+    `archived: ${totals.archived_count || 0}`,
+    `expired: ${totals.expired_count || 0}`,
+    `forgotten: ${totals.forgotten_count || 0}`,
+    `duplicates reused: ${totals.duplicate_reused_count || 0}`,
+    `denied: ${totals.denied_count || 0}`
+  ].join("\n");
 }
 
 function formatSetupResult(result) {
