@@ -19,7 +19,12 @@ export class MemoryPolicyEngine {
     }
 
     if (containsSecret(text)) {
-      return { status: "deny", reason: "Memory looks like a secret or credential." };
+      return {
+        status: "deny",
+        category: "sensitive",
+        sensitive: true,
+        reason: "Memory looks like a secret or credential."
+      };
     }
 
     if (!this.allowDuplicates) {

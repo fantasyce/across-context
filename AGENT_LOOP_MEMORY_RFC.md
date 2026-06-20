@@ -1,73 +1,100 @@
-# Agent Loop Memory RFC
+# Agent Loop Memory Contract
 
-This document records Across Context ownership for the Agent Loop work that
-remains after the host-side closeout in Across Agents Assistant `v0.8.28`.
+This document records the implemented Across Context ownership boundary for
+Agent Loop memory integration after the Across Agents Assistant `v0.8.28`
+host-side closeout.
 
-Across Context is a memory provider and review surface. It is not a task
-scheduler, cost controller, event-stream owner, or multi-agent router.
+Across Context is a memory provider, policy engine, and review surface. It is
+not a task scheduler, cost controller, event-stream owner, multi-agent router,
+or release automation engine.
 
-## Memory Telemetry Boundary
+## Acceptance Decision
 
-Across Context may expose aggregate memory lifecycle metrics for Agent Loop
-runs:
+Accepted: 2026-06-20.
 
-- memory candidates produced
-- pending candidates awaiting review
-- candidates approved, archived, expired, or forgotten
-- duplicate candidates rejected by policy
-- sensitive candidates denied by policy
+Decision owner: product owner request in the Agent Loop closeout cycle.
 
-It must not expose:
+Decision: implement aggregate Agent Loop memory-candidate metrics and
+candidate-policy diagnostics as the final Across Context engineering scope for
+the current Agent Loop release-quality contract.
 
-- raw prompts
-- raw transcripts
-- provider keys
-- local absolute paths
-- full memory text in telemetry payloads
+Acceptance criteria:
 
-## Proposed Metric Shape
-
-```json
-{
-  "schema_version": "agent-loop-memory-metric/1.0",
-  "metric": "memory_candidate.approved_count",
-  "value": 1,
-  "unit": "count",
-  "dimensions": {
-    "project_id": "project-...",
-    "loop_id": "loop-...",
-    "candidate_schema": "agent-loop-memory-candidate/1.0",
-    "source": "post_loop_pending_summary"
-  },
-  "observed_at": "2026-06-20T00:00:00Z"
-}
-```
-
-`project_id` and `loop_id` are optional when a report is aggregated across all
-projects.
+- CLI and MCP expose aggregate Agent Loop memory-candidate metrics.
+- Metrics count produced, pending, approved, archived, expired, forgotten,
+  duplicate, denied, and sensitive-denied candidates.
+- Policy events are diagnostics inputs only and do not become a second memory
+  store.
+- Metrics and policy events exclude raw memory text, prompts, transcripts,
+  provider keys, hidden reasoning, and local absolute paths.
+- Context keeps pending-first review and does not select agents, resume loops,
+  enforce runtime budgets, or approve handoffs.
 
 ## Structured Candidate Contract
 
-Across Context continues to accept compact Agent Loop summaries using
+Across Context accepts compact Agent Loop summaries using
 `agent-loop-memory-candidate/1.0`.
 
-The allowed summary fields remain:
+Allowed summary fields:
 
 - loop id
 - goal summary
 - outcome
 - step decisions
 - artifact hints
-- recovery and routing ids
+- recovery ids
+- routing ids
 - timestamps
 
 The summary must not include full transcripts, provider responses, hidden chain
-of thought, secrets, or private local paths.
+of thought, secrets, raw local paths, screenshots, large logs, or private tool
+payloads.
+
+Automatic loop summaries continue to enter pending review first. Context stores
+them as ordinary governed memories after the existing policy checks pass.
+
+## Memory Metrics Contract
+
+Implemented surfaces:
+
+- CLI: `across-context loop-memory-metrics --all-projects --json`
+- MCP resource: `across-context://agent-loop-memory-metrics`
+- MCP tool: `get_agent_loop_memory_metrics`
+
+The aggregate metrics response uses schema
+`agent-loop-memory-metrics/1.0`. Individual metric items use schema
+`agent-loop-memory-metric/1.0`.
+
+Metrics include:
+
+- total Agent Loop candidate count
+- pending, approved, archived, expired, and forgotten candidate counts
+- duplicate candidate reuse count
+- denied candidate count
+- sensitive-denied candidate count
+- status breakdown
+- scope breakdown
+
+Metrics must not include raw prompts, raw transcripts, provider keys, local
+absolute paths, hidden reasoning, or full memory text.
+
+## Policy Event Contract
+
+Across Context records Agent Loop memory-candidate policy events for:
+
+- allowed candidates
+- duplicate candidates reused by policy
+- denied candidates
+- sensitive candidates denied by policy
+- forgotten candidates
+
+Policy events are aggregate diagnostics inputs. They must not become a second
+memory store and must not include raw candidate text.
 
 ## Multi-Agent Boundary
 
-Across Context may store memory about a routing decision after it is converted
-into a safe candidate summary.
+Across Context may store memory about a routing decision after Orchestrator or a
+host converts it into a safe candidate summary.
 
 Across Context must not:
 
@@ -79,22 +106,18 @@ Across Context must not:
 
 Those actions remain Orchestrator and host responsibilities.
 
-## Automation Integration
+## Completion Boundary
 
-AAA's ecosystem review workflow may create issues that mention memory policy,
-pending review, or candidate metrics. Context changes still require a PR and
-`npm run check`.
+The current Agent Loop memory contract is complete for host integration:
 
-Automation may propose documentation or policy clarification automatically, but
-runtime memory writes and lifecycle changes remain behind existing policy and
-review gates.
+- structured memory candidates
+- pending-first review
+- duplicate and sensitive-write policy enforcement
+- all-project pending review
+- aggregate memory-candidate metrics
+- CLI and MCP metrics access
+- raw-text exclusion tests
 
-## Acceptance Criteria
-
-Before implementing any memory metric or policy change:
-
-- tests prove raw memory text is excluded from telemetry
-- tests prove sensitive candidates are still denied before storage
-- MCP resource and CLI output remain backward compatible
-- pending review defaults remain `pending`
-- all-project review keeps project-scoped context separated from global memory
+Future product scopes, such as dashboard analytics, cross-device sync,
+cryptographic evidence trust, or autonomous workflow planning, require separate
+product specs because they change review, trust, or operating policy.

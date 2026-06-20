@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ContextVault } from "../src/vault.js";
+import { ContextVault, readJsonl } from "../src/vault.js";
 
 async function tempVault(options = {}) {
   const home = await mkdtemp(join(tmpdir(), "across-context-vault-management-"));
@@ -116,6 +116,69 @@ test("ContextVault updates multiple memory statuses in one call", async () => {
   assert.equal(result.updated.length, 2);
   assert.deepEqual(result.missing, []);
   assert.equal((await vault.listMemories({ status: "archived" })).length, 2);
+});
+
+test("ContextVault reports Agent Loop memory metrics without raw memory text", async () => {
+  const vault = await tempVault();
+  const projectRoot = join(vault.home, "loop-project");
+  const candidate = JSON.stringify({
+    schema_version: "agent-loop-memory-candidate/1.0",
+    loop_id: "loop-metrics-1",
+    goal: "Durable private implementation detail",
+    outcome: "completed",
+    decisions: [{ step_id: "step-1", action_type: "task_dispatch", status: "completed" }]
+  });
+  const sensitiveCandidate = JSON.stringify({
+    schema_version: "agent-loop-memory-candidate/1.0",
+    loop_id: "loop-metrics-secret",
+    goal: "token: ghp_1234567890abcdefghijklmnop",
+    outcome: "blocked"
+  });
+
+  const pending = await vault.remember({
+    scope: "project",
+    type: "session",
+    text: candidate,
+    projectRoot,
+    status: "pending",
+    source: "agent-loop"
+  });
+  const duplicate = await vault.remember({
+    scope: "project",
+    type: "session",
+    text: candidate,
+    projectRoot,
+    status: "pending",
+    source: "agent-loop"
+  });
+  await assert.rejects(() => vault.remember({
+    scope: "project",
+    type: "session",
+    text: sensitiveCandidate,
+    projectRoot,
+    status: "pending",
+    source: "agent-loop"
+  }), /Memory rejected/);
+
+  const approved = await vault.updateStatus(pending.id, "active");
+  const metrics = await vault.agentLoopMemoryMetrics({ includeProjects: true });
+  const raw = JSON.stringify(metrics);
+
+  assert.equal(duplicate.duplicateOf, pending.id);
+  assert.equal(approved.status, "active");
+  assert.equal(metrics.schema_version, "agent-loop-memory-metrics/1.0");
+  assert.equal(metrics.totals.candidate_count, 1);
+  assert.equal(metrics.totals.approved_count, 1);
+  assert.equal(metrics.totals.duplicate_reused_count, 1);
+  assert.equal(metrics.totals.denied_count, 1);
+  assert.equal(metrics.totals.sensitive_denied_count, 1);
+  const policyEvents = await readJsonl(join(vault.home, "events", "memory-policy.jsonl"));
+  const sensitiveEvent = policyEvents.find((event) => event.policyStatus === "deny");
+  assert.equal(sensitiveEvent.policyCategory, "sensitive");
+  assert.equal(sensitiveEvent.sensitive, true);
+  assert.ok(metrics.metrics.some((metric) => metric.metric === "memory_candidate.approved_count"));
+  assert.doesNotMatch(raw, /Durable private implementation detail/);
+  assert.doesNotMatch(raw, /ghp_1234567890/);
 });
 
 test("ContextVault reports missing ids during batch status updates", async () => {
