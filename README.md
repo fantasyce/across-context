@@ -61,6 +61,9 @@ operating instructions, and automatic memory needs guardrails.
   Orchestrator `v0.6.12`, including schema
   `agent-loop-memory-candidate/1.0` and the non-secret fields that may be
   proposed for pending Across Context review.
+- Records the remaining Agent Loop memory and telemetry boundaries in
+  [Agent Loop Memory RFC](AGENT_LOOP_MEMORY_RFC.md), keeping Context scoped to
+  memory policy and pending review rather than runtime routing.
 
 ### New in v0.7.6
 
