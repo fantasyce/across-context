@@ -55,7 +55,7 @@ Across Context has three layers:
 This is the important product idea: MCP alone is not enough. Agents also need
 operating instructions, and automatic memory needs guardrails.
 
-### Next release
+### New in v0.7.8
 
 - Adds aggregate Agent Loop memory-candidate metrics for hosts through
   `across-context loop-memory-metrics --all-projects --json`, MCP resource
@@ -174,7 +174,7 @@ Or install from a local release tarball:
 
 ```bash
 npm pack
-npm install -g ./across-context-0.7.7.tgz
+npm install -g ./across-context-0.7.8.tgz
 ```
 
 Verify:
@@ -467,7 +467,7 @@ across-context setup --all --yes
 - 生成 Cursor MCP 配置和规则
 - 注入自动读写记忆的行为规则
 
-### 下一版能力
+### v0.7.8 新能力
 
 - 通过 `across-context loop-memory-metrics --all-projects --json`、MCP
   resource `across-context://agent-loop-memory-metrics` 和 MCP tool
