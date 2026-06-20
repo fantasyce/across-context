@@ -15,6 +15,7 @@ test("renderAgentCard describes Across Context as a local memory provider", asyn
   assert.equal(card.capabilities.memory, true);
   assert.equal(card.capabilities.agentLoopMemoryHooks, true);
   assert.equal(card.capabilities.allProjectPendingReview, true);
+  assert.equal(card.capabilities.autopilotMemoryPolicy, true);
   assert.equal(card.endpoints.mcp.command, "across-context");
   assert.equal(card.protocols.mcp.transport, "stdio");
   assert.equal(card.protocols.mcp.resources, true);
@@ -24,6 +25,7 @@ test("renderAgentCard describes Across Context as a local memory provider", asyn
   assert.equal(card.governance.loopMemoryPolicy.defaultWriteStatus, "pending");
   assert.equal(card.governance.loopMemoryPolicy.adapterContract.review.allProjectsCli, "across-context pending --all-projects --json");
   assert.equal(card.governance.loopMemoryPolicy.neverPersist.includes("full transcripts"), true);
+  assert.equal(card.governance.autopilotMemoryPolicy.neverPersist.includes("raw web pages"), true);
   assert.deepEqual(card.memory.types, ["preference", "decision", "note", "command", "session"]);
   assert.deepEqual(card.memory.loopHooks, ["pre_loop_search", "step_context_attach", "post_loop_pending_summary"]);
   assert.deepEqual(card.memory.reviewModes, ["global", "project", "all-projects"]);
@@ -32,6 +34,7 @@ test("renderAgentCard describes Across Context as a local memory provider", asyn
   assert.doesNotMatch(JSON.stringify(card), new RegExp(escapeRegExp(home)));
   assert.ok(card.skills.some((skill) => skill.id === "shared-memory"));
   assert.ok(card.skills.some((skill) => skill.id === "agent-loop-memory-hooks"));
+  assert.ok(card.skills.some((skill) => skill.id === "autopilot-memory-policy"));
 });
 
 function escapeRegExp(value) {

@@ -70,6 +70,7 @@ test("CLI reviews pending memories, exports agent card, and runs hooks", async (
   const explained = await exec("node", [cli, "search", "bootstrap", "--mode", "hybrid", "--project", project, "--json", "--explain"], { env });
   const card = await exec("node", [cli, "agent-card", "--json"], { env });
   const loopPolicy = await exec("node", [cli, "loop-memory-policy", "--json"], { env });
+  const autopilotPolicy = await exec("node", [cli, "autopilot-memory-policy", "--json"], { env });
   const team = await exec("node", [cli, "team", "export", "--project", project], { env });
   const hook = await exec("node", [cli, "hook", "task-start", "--query", "bootstrap", "--project", project], { env });
   await exec("node", [cli, "remember", "Maybe remember a second review item.", "--auto"], { env });
@@ -84,6 +85,8 @@ test("CLI reviews pending memories, exports agent card, and runs hooks", async (
   assert.equal(JSON.parse(loopPolicy.stdout).defaultWriteStatus, "pending");
   assert.equal(JSON.parse(loopPolicy.stdout).adapterContract.writeCandidate.structuredSummary.schema, "agent-loop-memory-candidate/1.0");
   assert.equal(JSON.parse(loopPolicy.stdout).hooks[0].id, "pre_loop_search");
+  assert.equal(JSON.parse(autopilotPolicy.stdout).adapterContract.writeReviewSummary.structuredSummary.schema, "across-autopilot-memory/1.0");
+  assert.equal(JSON.parse(autopilotPolicy.stdout).neverPersist.includes("raw web pages"), true);
   assert.match(team.stdout, /deterministic task-start/);
   assert.match(hook.stdout, /deterministic task-start/);
   assert.equal(allPending.length, 1);

@@ -1,4 +1,5 @@
 import { renderAgentLoopMemoryPolicy } from "./loop-memory-policy.js";
+import { renderAutopilotMemoryPolicy } from "./autopilot-memory-policy.js";
 
 export async function renderAgentCard(vault) {
   const loopMemoryPolicy = renderAgentLoopMemoryPolicy();
@@ -14,6 +15,7 @@ export async function renderAgentCard(vault) {
       agentLoopMemoryHooks: true,
       agentLoopMemoryHooksV2: true,
       allProjectPendingReview: true,
+      autopilotMemoryPolicy: true,
       teamExport: true,
       localFirst: true
     },
@@ -50,7 +52,8 @@ export async function renderAgentCard(vault) {
       localFirst: true,
       rejectsSecrets: true,
       teamVisibility: true,
-      loopMemoryPolicy
+      loopMemoryPolicy,
+      autopilotMemoryPolicy: renderAutopilotMemoryPolicy()
     },
     memory: {
       storage: "local-jsonl",
@@ -80,6 +83,11 @@ export async function renderAgentCard(vault) {
         id: "memory-review",
         name: "Memory Review",
         description: "Review pending automatic memories before activating them."
+      },
+      {
+        id: "autopilot-memory-policy",
+        name: "Autopilot Memory Policy",
+        description: "Store compact Across Autopilot review and promotion summaries as pending memory."
       },
       {
         id: "team-context",

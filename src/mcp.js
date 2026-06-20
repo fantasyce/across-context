@@ -3,6 +3,7 @@ import { exportContext, renderContextDocument } from "./exporters.js";
 import { learnProject } from "./project.js";
 import { renderAgentCard } from "./agent-card.js";
 import { renderAgentLoopMemoryPolicy, renderAgentLoopMemoryPromptText } from "./loop-memory-policy.js";
+import { renderAutopilotMemoryPolicy, renderAutopilotMemoryPromptText } from "./autopilot-memory-policy.js";
 
 export function createContextMcpServerDefinition(vault) {
   return {
@@ -44,6 +45,12 @@ export function createContextMcpServerDefinition(vault) {
         name: "Agent Loop Memory Metrics",
         description: "Aggregate lifecycle metrics for structured Agent Loop memory candidates.",
         mimeType: "application/json"
+      },
+      {
+        uri: "across-context://autopilot-memory-policy",
+        name: "Autopilot Memory Policy",
+        description: "Memory policy for Across Autopilot review and promotion summaries.",
+        mimeType: "application/json"
       }
     ],
     prompts: [
@@ -73,6 +80,11 @@ export function createContextMcpServerDefinition(vault) {
       {
         name: "agent-loop-memory-policy",
         description: "Explain how agent loops should read, attach, and write Across Context memory.",
+        arguments: []
+      },
+      {
+        name: "autopilot-memory-policy",
+        description: "Explain how Across Autopilot should write compact pending memory summaries.",
         arguments: []
       }
     ],
@@ -284,6 +296,9 @@ async function readResource(vault, uri, args = {}) {
     });
     return resourceResult(uri, "application/json", JSON.stringify(metrics, null, 2));
   }
+  if (uri === "across-context://autopilot-memory-policy") {
+    return resourceResult(uri, "application/json", JSON.stringify(renderAutopilotMemoryPolicy(), null, 2));
+  }
   throw new Error(`Unknown resource: ${uri}`);
 }
 
@@ -322,6 +337,13 @@ async function getPrompt(vault, name, args = {}) {
       name,
       "Apply Across Context memory hooks to an agent loop.",
       renderAgentLoopMemoryPromptText()
+    );
+  }
+  if (name === "autopilot-memory-policy") {
+    return promptResult(
+      name,
+      "Apply Across Context memory policy to Autopilot summaries.",
+      renderAutopilotMemoryPromptText()
     );
   }
   throw new Error(`Unknown prompt: ${name}`);

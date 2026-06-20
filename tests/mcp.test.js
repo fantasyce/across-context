@@ -49,8 +49,10 @@ test("MCP server definition exposes resources and prompts", async () => {
   assert.ok(definition.resources.some((resource) => resource.uri === "across-context://stats"));
   assert.ok(definition.resources.some((resource) => resource.uri === "across-context://agent-loop-memory-policy"));
   assert.ok(definition.resources.some((resource) => resource.uri === "across-context://agent-loop-memory-metrics"));
+  assert.ok(definition.resources.some((resource) => resource.uri === "across-context://autopilot-memory-policy"));
   assert.ok(definition.prompts.some((prompt) => prompt.name === "task-start-context"));
   assert.ok(definition.prompts.some((prompt) => prompt.name === "agent-loop-memory-policy"));
+  assert.ok(definition.prompts.some((prompt) => prompt.name === "autopilot-memory-policy"));
 
   const resource = await definition.readResource("across-context://stats", {});
   assert.match(JSON.stringify(resource), /total/);
@@ -69,6 +71,13 @@ test("MCP server definition exposes resources and prompts", async () => {
   assert.equal(policy.adapterContract.search.activeStatus, "active");
   assert.equal(policy.adapterContract.writeCandidate.defaultStatus, "pending");
   assert.equal(policy.adapterContract.writeCandidate.structuredSummary.schema, "agent-loop-memory-candidate/1.0");
+
+  const autopilotPrompt = await definition.getPrompt("autopilot-memory-policy", {});
+  assert.match(autopilotPrompt.messages[0].content.text, /Autopilot/);
+
+  const autopilotResource = await definition.readResource("across-context://autopilot-memory-policy", {});
+  const autopilotPolicy = JSON.parse(autopilotResource.contents[0].text);
+  assert.equal(autopilotPolicy.adapterContract.writeReviewSummary.structuredSummary.schema, "across-autopilot-memory/1.0");
   assert.ok(policy.adapterContract.writeCandidate.structuredSummary.fields.includes("failure_types"));
   assert.deepEqual(policy.hostLoopControls.actions, ["cancel", "reject_action", "retry_step"]);
   assert.equal(policy.hostLoopControls.events, "read from the orchestrator loop event stream");

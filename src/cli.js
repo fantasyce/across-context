@@ -7,6 +7,7 @@ import { installAgent, installHostPlugin, uninstallHostPlugin } from "./installe
 import { doctorAcrossContext, setupAcrossContext, statusAcrossContext } from "./setup.js";
 import { renderAgentCard } from "./agent-card.js";
 import { renderAgentLoopMemoryPolicy } from "./loop-memory-policy.js";
+import { renderAutopilotMemoryPolicy } from "./autopilot-memory-policy.js";
 import { runHook } from "./hooks.js";
 import { startDashboard } from "./dashboard.js";
 import { renderHealth, renderPluginManifest, renderPluginStatus } from "./plugin-manifest.js";
@@ -183,6 +184,13 @@ async function main(argv) {
     const parsed = parseArgs(rest);
     const policy = renderAgentLoopMemoryPolicy();
     console.log(parsed.json ? JSON.stringify(policy, null, 2) : formatLoopMemoryPolicy(policy));
+    return;
+  }
+
+  if (command === "autopilot-memory-policy") {
+    const parsed = parseArgs(rest);
+    const policy = renderAutopilotMemoryPolicy();
+    console.log(parsed.json ? JSON.stringify(policy, null, 2) : formatAutopilotMemoryPolicy(policy));
     return;
   }
 
@@ -432,6 +440,7 @@ Commands:
   compact [--project path]              Remove duplicate records from the vault
   agent-card [--json]                   Print the Across Context agent card
   loop-memory-policy [--json]           Print agent-loop memory hook policy
+  autopilot-memory-policy [--json]      Print Autopilot memory summary policy
   loop-memory-metrics [--project path|--all-projects] [--json]
                                         Print aggregate agent-loop memory candidate metrics
   plugin-manifest [--json]              Print the Across plugin manifest
@@ -454,6 +463,15 @@ Commands:
   dashboard [--host 127.0.0.1] [--port 3767]
   mcp                                   Start MCP stdio server
 `);
+}
+
+function formatAutopilotMemoryPolicy(policy) {
+  return [
+    `provider: ${policy.provider}`,
+    `default write status: ${policy.defaultWriteStatus}`,
+    `allowed writes: ${policy.allowedWrites.join(", ")}`,
+    `never persist: ${policy.neverPersist.join(", ")}`
+  ].join("\n");
 }
 
 function formatStats(stats) {

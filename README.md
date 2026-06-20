@@ -55,6 +55,13 @@ Across Context has three layers:
 This is the important product idea: MCP alone is not enough. Agents also need
 operating instructions, and automatic memory needs guardrails.
 
+### Next release
+
+- Adds an Across Autopilot memory policy surface so autonomous ecosystem
+  reviews and promotion reports can be stored as compact pending memory
+  summaries without raw web pages, transcripts, secrets, signing assets, or
+  local source paths.
+
 ### New in v0.7.8
 
 - Adds aggregate Agent Loop memory-candidate metrics for hosts through
@@ -466,6 +473,12 @@ across-context setup --all --yes
 - 生成 `CLAUDE.md`
 - 生成 Cursor MCP 配置和规则
 - 注入自动读写记忆的行为规则
+
+### 下一版能力
+
+- 增加 Across Autopilot 记忆策略接口，让自动化生态审查和候选晋级报告能以
+  紧凑的 pending 记忆摘要进入审查流程，同时避免写入原始网页、原始会话、
+  密钥、签名资产或本地源码路径。
 
 ### v0.7.8 新能力
 
