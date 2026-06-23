@@ -10,6 +10,7 @@ import { renderAgentLoopMemoryPolicy } from "./loop-memory-policy.js";
 import { runHook } from "./hooks.js";
 import { startDashboard } from "./dashboard.js";
 import { renderHealth, renderPluginManifest, renderPluginStatus } from "./plugin-manifest.js";
+import { loopHistory, loopMemoryDiff, recallLoopMemory, rememberLoopMemory } from "./autopilot-loop-memory.js";
 
 const vault = new ContextVault();
 
@@ -193,6 +194,49 @@ async function main(argv) {
       includeProjects: Boolean(parsed["all-projects"])
     });
     console.log(parsed.json ? JSON.stringify(metrics, null, 2) : formatLoopMemoryMetrics(metrics));
+    return;
+  }
+
+  if (command === "remember-loop") {
+    const parsed = parseArgs(rest);
+    const summary = parsed["summary-json"] ? JSON.parse(parsed["summary-json"]) : {};
+    const result = await rememberLoopMemory(vault, {
+      specId: parsed["spec-id"],
+      runId: parsed["run-id"],
+      text: parsed.text || parsed.positionals.join(" "),
+      summary
+    });
+    console.log(parsed.json ? JSON.stringify(result, null, 2) : `${result.status}: ${result.memory?.id || result.reason}`);
+    return;
+  }
+
+  if (command === "recall-loop") {
+    const parsed = parseArgs(rest);
+    const result = await recallLoopMemory(vault, {
+      specId: parsed["spec-id"],
+      runId: parsed["run-id"],
+      limit: parsed.limit,
+      status: parsed.status
+    });
+    console.log(parsed.json ? JSON.stringify(result, null, 2) : formatRecallLoop(result));
+    return;
+  }
+
+  if (command === "loop-history") {
+    const parsed = parseArgs(rest);
+    const result = await loopHistory(vault, { specId: parsed["spec-id"], limit: parsed.limit });
+    console.log(parsed.json ? JSON.stringify(result, null, 2) : result.specs.map((item) => `${item.spec_id}: ${item.run_count}`).join("\n"));
+    return;
+  }
+
+  if (command === "loop-memory-diff") {
+    const parsed = parseArgs(rest);
+    const ids = parsed["run-id"] || [];
+    const result = await loopMemoryDiff(vault, {
+      runIdA: Array.isArray(ids) ? ids[0] : parsed["run-id-a"],
+      runIdB: Array.isArray(ids) ? ids[1] : parsed["run-id-b"]
+    });
+    console.log(parsed.json ? JSON.stringify(result, null, 2) : `added: ${result.added.length}\nremoved: ${result.removed.length}`);
     return;
   }
 
@@ -434,6 +478,14 @@ Commands:
   loop-memory-policy [--json]           Print agent-loop memory hook policy
   loop-memory-metrics [--project path|--all-projects] [--json]
                                         Print aggregate agent-loop memory candidate metrics
+  remember-loop --spec-id id --run-id id --text text --summary-json '{}' [--json]
+                                        Store a pending loop memory summary with policy enforcement
+  recall-loop --spec-id id --limit 10 [--json]
+                                        Recall prior loop memory for a spec
+  recall-loop --run-id id [--json]      Recall loop memory for a run
+  loop-history [--spec-id id] [--json]  Summarize loop memory by spec
+  loop-memory-diff --run-id a --run-id b [--json]
+                                        Compare loop memory between two runs
   plugin-manifest [--json]              Print the Across plugin manifest
   plugin-status [--json]                Print host-install and protocol status
   health [--json]                       Probe vault health without external agent setup
@@ -477,6 +529,11 @@ function formatLoopMemoryMetrics(metrics) {
     `duplicates reused: ${totals.duplicate_reused_count || 0}`,
     `denied: ${totals.denied_count || 0}`
   ].join("\n");
+}
+
+function formatRecallLoop(result) {
+  if (!result.results.length) return "No loop memory found.";
+  return result.results.map((item) => `${item.memory_id} [${item.spec_id}/${item.run_id}] ${item.text}`).join("\n");
 }
 
 function formatSetupResult(result) {
