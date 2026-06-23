@@ -15,12 +15,16 @@ test("MCP server definition exposes memory tools backed by the vault", async () 
     definition.tools.map((tool) => tool.name).sort(),
     [
       "approve_memory",
+      "diff_loop_memory",
       "export_agent_instructions",
       "get_agent_card",
       "get_agent_loop_memory_metrics",
       "get_agent_loop_memory_policy",
+      "get_loop_history",
       "get_project_context",
+      "recall_loop_memory",
       "remember_context",
+      "remember_loop_memory",
       "review_pending_memories",
       "search_context"
     ]

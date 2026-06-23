@@ -3,11 +3,12 @@ import { exportContext, renderContextDocument } from "./exporters.js";
 import { learnProject } from "./project.js";
 import { renderAgentCard } from "./agent-card.js";
 import { renderAgentLoopMemoryPolicy, renderAgentLoopMemoryPromptText } from "./loop-memory-policy.js";
+import { loopHistory, loopMemoryDiff, recallLoopMemory, rememberLoopMemory } from "./autopilot-loop-memory.js";
 
 export function createContextMcpServerDefinition(vault) {
   return {
     name: "across-context",
-    version: "0.7.8",
+    version: "0.8.0",
     resources: [
       {
         uri: "across-context://agent-card",
@@ -225,6 +226,72 @@ export function createContextMcpServerDefinition(vault) {
             includeProjects: Boolean(args.includeProjects)
           });
           return textResult(JSON.stringify(metrics, null, 2), { metrics });
+        }
+      },
+      {
+        name: "remember_loop_memory",
+        description: "Store a pending Loop Engineering memory summary with policy enforcement.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            specId: { type: "string" },
+            runId: { type: "string" },
+            text: { type: "string" },
+            summary: { type: "object" }
+          },
+          required: ["specId", "runId", "text"]
+        },
+        handler: async (args) => {
+          const result = await rememberLoopMemory(vault, args);
+          return textResult(JSON.stringify(result, null, 2), { result });
+        }
+      },
+      {
+        name: "recall_loop_memory",
+        description: "Recall prior loop memories by spec id or run id.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            specId: { type: "string" },
+            runId: { type: "string" },
+            limit: { type: "number", default: 10 },
+            status: { type: "string" }
+          }
+        },
+        handler: async (args) => {
+          const result = await recallLoopMemory(vault, args);
+          return textResult(JSON.stringify(result, null, 2), { result });
+        }
+      },
+      {
+        name: "get_loop_history",
+        description: "Summarize loop memory history by spec.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            specId: { type: "string" },
+            limit: { type: "number", default: 50 }
+          }
+        },
+        handler: async (args) => {
+          const result = await loopHistory(vault, args);
+          return textResult(JSON.stringify(result, null, 2), { result });
+        }
+      },
+      {
+        name: "diff_loop_memory",
+        description: "Compare loop memory between two runs.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            runIdA: { type: "string" },
+            runIdB: { type: "string" }
+          },
+          required: ["runIdA", "runIdB"]
+        },
+        handler: async (args) => {
+          const result = await loopMemoryDiff(vault, args);
+          return textResult(JSON.stringify(result, null, 2), { result });
         }
       },
       {

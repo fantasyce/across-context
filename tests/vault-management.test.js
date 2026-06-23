@@ -131,7 +131,7 @@ test("ContextVault reports Agent Loop memory metrics without raw memory text", a
   const sensitiveCandidate = JSON.stringify({
     schema_version: "agent-loop-memory-candidate/1.0",
     loop_id: "loop-metrics-secret",
-    goal: "token: ghp_1234567890abcdefghijklmnop",
+    goal: "token: redacted-example-value",
     outcome: "blocked"
   });
 
@@ -178,7 +178,7 @@ test("ContextVault reports Agent Loop memory metrics without raw memory text", a
   assert.equal(sensitiveEvent.sensitive, true);
   assert.ok(metrics.metrics.some((metric) => metric.metric === "memory_candidate.approved_count"));
   assert.doesNotMatch(raw, /Durable private implementation detail/);
-  assert.doesNotMatch(raw, /ghp_1234567890/);
+  assert.doesNotMatch(raw, /redacted-example-value/);
 });
 
 test("ContextVault reports missing ids during batch status updates", async () => {

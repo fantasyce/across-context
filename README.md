@@ -42,6 +42,20 @@ Use it when you want agents to remember:
 - Protects the vault with a memory policy engine
 - Provides a local dashboard, explainable hybrid search, pending approval, lifecycle controls, MCP resources and prompts, team export, and deterministic hooks
 
+### New in v0.8.0: Loop Engineering Memory Surface
+
+- Adds Autopilot loop memory commands for `remember-loop`, `recall-loop`,
+  `loop-history`, and `loop-memory-diff`.
+- Applies loop memory policy before writes: safe summaries become
+  `accepted_pending`, protected local paths are redacted before pending review,
+  and credential/private-key style content is rejected.
+- Loop memory summaries may include non-secret model decision provenance
+  (`provider`, `model`, `decision_hash`, patch counts/paths) while keeping full
+  patch content in run evidence instead of long-term memory.
+- Exposes the same loop memory surfaces through MCP so Autopilot and other
+  hosts can recall prior loop evidence and write pending summaries without
+  depending on Context internals.
+
 ### How It Works
 
 ![Across Context architecture](assets/readme/across-context-architecture.svg)
@@ -55,7 +69,7 @@ Across Context has three layers:
 This is the important product idea: MCP alone is not enough. Agents also need
 operating instructions, and automatic memory needs guardrails.
 
-### New in v0.7.8
+### New in v0.8.0
 
 - Adds aggregate Agent Loop memory-candidate metrics for hosts through
   `across-context loop-memory-metrics --all-projects --json`, MCP resource
@@ -174,7 +188,7 @@ Or install from a local release tarball:
 
 ```bash
 npm pack
-npm install -g ./across-context-0.7.8.tgz
+npm install -g ./across-context-0.8.0.tgz
 ```
 
 Verify:
@@ -467,7 +481,7 @@ across-context setup --all --yes
 - 生成 Cursor MCP 配置和规则
 - 注入自动读写记忆的行为规则
 
-### v0.7.8 新能力
+### v0.8.0 新能力
 
 - 通过 `across-context loop-memory-metrics --all-projects --json`、MCP
   resource `across-context://agent-loop-memory-metrics` 和 MCP tool
