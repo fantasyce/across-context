@@ -172,9 +172,10 @@ operating instructions, and automatic memory needs guardrails.
 
 ### Install
 
-The current open-source distribution is GitHub-first. Release tarballs are
-attached to GitHub Releases, and the npm package metadata is ready, but npm
-registry publication is not required for hosts to install or run the plugin.
+The current open-source distribution is GitHub-first. The `v0.8.0` tag and
+GitHub source archives are the canonical release artifacts; no extra npm
+tarball asset is attached to the GitHub Release, and npm registry publication is
+not required for hosts to install or run the plugin.
 
 Install from source for development:
 
@@ -184,7 +185,7 @@ cd across-context
 npm link
 ```
 
-Or install from a local release tarball:
+Or build and install a local npm tarball from the checked-out release tag:
 
 ```bash
 npm pack
