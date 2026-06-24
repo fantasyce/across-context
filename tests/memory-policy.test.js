@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { MemoryPolicyEngine } from "../src/memory-policy.js";
+import { MemoryPolicyEngine, isSensitivePolicyDecision } from "../src/memory-policy.js";
 
 test("MemoryPolicyEngine denies sensitive secrets before writing", () => {
   const policy = new MemoryPolicyEngine();
@@ -16,6 +16,7 @@ test("MemoryPolicyEngine denies sensitive secrets before writing", () => {
   assert.equal(decision.category, "sensitive");
   assert.equal(decision.sensitive, true);
   assert.match(decision.reason, /secret/i);
+  assert.equal(isSensitivePolicyDecision(decision), true);
 });
 
 test("MemoryPolicyEngine detects duplicate durable memories", () => {

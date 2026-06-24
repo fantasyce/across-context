@@ -1,6 +1,6 @@
 import { appendFile, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
-import { MemoryPolicyEngine, normalizeMemoryText } from "./memory-policy.js";
+import { MemoryPolicyEngine, isSensitivePolicyDecision, normalizeMemoryText } from "./memory-policy.js";
 import { searchEntries } from "./semantic-search.js";
 import {
   defaultHome,
@@ -486,13 +486,11 @@ function agentLoopCandidateSchema(text) {
 }
 
 function isSensitivePolicyEvent(event) {
-  if (event.sensitive === true) {
-    return true;
-  }
-  if (String(event.policyCategory || "").toLowerCase() === "sensitive") {
-    return true;
-  }
-  return /\b(secret|credential|token|password|passwd|cookie|private key)\b/i.test(String(event.reason || ""));
+  return isSensitivePolicyDecision({
+    sensitive: event.sensitive,
+    category: event.policyCategory,
+    reason: event.reason
+  });
 }
 
 function normalizeStatus(status) {

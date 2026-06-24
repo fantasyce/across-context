@@ -5,6 +5,8 @@ const SECRET_PATTERNS = [
   /\b(api[_-]?key|token|secret|password|passwd|cookie)\s*[:=]\s*\S+/i,
   /-----BEGIN [A-Z ]*PRIVATE KEY-----/
 ];
+const SENSITIVE_POLICY_CATEGORY = "sensitive";
+const SENSITIVE_POLICY_REASON_PATTERN = /\b(secret|credential|token|password|passwd|cookie|private key)\b/i;
 
 export class MemoryPolicyEngine {
   constructor(options = {}) {
@@ -21,7 +23,7 @@ export class MemoryPolicyEngine {
     if (containsSecret(text)) {
       return {
         status: "deny",
-        category: "sensitive",
+        category: SENSITIVE_POLICY_CATEGORY,
         sensitive: true,
         reason: "Memory looks like a secret or credential."
       };
@@ -57,6 +59,12 @@ export function normalizeMemoryText(text) {
 
 export function containsSecret(text) {
   return SECRET_PATTERNS.some((pattern) => pattern.test(text));
+}
+
+export function isSensitivePolicyDecision(decision = {}) {
+  return decision.sensitive === true
+    || String(decision.category || "").toLowerCase() === SENSITIVE_POLICY_CATEGORY
+    || SENSITIVE_POLICY_REASON_PATTERN.test(String(decision.reason || ""));
 }
 
 function findDuplicate(text, input, existingMemories) {
