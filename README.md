@@ -43,6 +43,16 @@ Use it when you want agents to remember:
 - Protects the vault with a memory policy engine
 - Provides a local dashboard, explainable hybrid search, pending approval, lifecycle controls, MCP resources and prompts, team export, and deterministic hooks
 
+### New in v0.8.3: Sensitive Memory Policy Classification
+
+- Adds explicit sensitive memory policy classification for protected local
+  paths, credentials, private keys, and personal or regulated data indicators.
+- Keeps policy output host-neutral so Codex, Claude, CloudCode, AAA, and other
+  MCP-capable hosts can explain why a memory write is accepted, pending,
+  redacted, or rejected without receiving raw sensitive text.
+- Preserves the `v0.8.2` managed runtime layout under `~/.across` for generic
+  host portability.
+
 ### New in v0.8.2: Generic Host Context Portability
 
 - Documents Across Context as a standalone memory plugin for Codex, CloudCode
@@ -195,7 +205,7 @@ operating instructions, and automatic memory needs guardrails.
 
 ### Install
 
-The current open-source distribution is GitHub-first. The `v0.8.2` tag and
+The current open-source distribution is GitHub-first. The `v0.8.3` tag and
 GitHub source archives are the canonical release artifacts; no extra npm
 tarball asset is attached to the GitHub Release, and npm registry publication is
 not required for hosts to install or run the plugin.
@@ -212,7 +222,7 @@ Or build and install a local npm tarball from the checked-out release tag:
 
 ```bash
 npm pack
-npm install -g ./across-context-0.8.2.tgz
+npm install -g ./across-context-0.8.3.tgz
 ```
 
 Verify:
@@ -507,6 +517,14 @@ across-context setup --all --yes
 - 生成 `CLAUDE.md`
 - 生成 Cursor MCP 配置和规则
 - 注入自动读写记忆的行为规则
+
+### v0.8.3 新能力
+
+- 新增敏感记忆策略分类，覆盖受保护本地路径、凭证、私钥以及个人或受监管数据
+  指示器。
+- 策略输出保持宿主无关，Codex、Claude、CloudCode、AAA 以及其他 MCP-capable
+  host 可以解释记忆写入为何被接受、pending、脱敏或拒绝，同时不接收原始敏感文本。
+- 继续沿用 `v0.8.2` 的 `~/.across` managed runtime 布局，保持通用宿主可移植性。
 
 ### v0.8.2 新能力
 

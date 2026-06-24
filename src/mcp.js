@@ -8,7 +8,7 @@ import { contextPackSummary, loopHistory, loopMemoryDiff, recallLoopMemory, reme
 export function createContextMcpServerDefinition(vault) {
   return {
     name: "across-context",
-    version: "0.8.2",
+    version: "0.8.3",
     resources: [
       {
         uri: "across-context://agent-card",
