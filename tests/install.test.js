@@ -19,10 +19,21 @@ test("install command prepares agent-specific integration files or commands", as
   await exec("node", [cli, "install", "codex", "--project", project], { env });
   await exec("node", [cli, "install", "cursor", "--project", project], { env });
   const { stdout } = await exec("node", [cli, "install", "claude-code", "--stdout"], { env });
+  const { stdout: codexMcpStdout } = await exec("node", [cli, "install", "codex-mcp", "--stdout"], { env });
+  const claudeConfig = join(home, "claude_desktop_config.json");
+  await writeFile(claudeConfig, JSON.stringify({ deploymentMode: "default" }));
+  await exec("node", [cli, "install", "claude-desktop", "--config-file", claudeConfig], { env });
 
   assert.match(await readFile(join(project, "AGENTS.md"), "utf8"), /Prefer small tests/);
   assert.match(await readFile(join(project, ".cursor", "mcp.json"), "utf8"), /across-context/);
   assert.match(stdout, /claude mcp add -s user across-context -- across-context mcp/);
+  assert.match(codexMcpStdout, /codex mcp add across-context -- across-context mcp/);
+  const claudePayload = JSON.parse(await readFile(claudeConfig, "utf8"));
+  assert.equal(claudePayload.deploymentMode, "default");
+  assert.deepEqual(claudePayload.mcpServers["across-context"], {
+    command: "across-context",
+    args: ["mcp"]
+  });
 });
 
 test("install host-plugin copies the runtime into a hidden plugin directory", async () => {
@@ -44,7 +55,9 @@ test("install host-plugin copies the runtime into a hidden plugin directory", as
   assert.equal(manifest.kind, "memory-provider");
   assert.equal(manifest.entrypoints.mcp.command, commandPath);
   assert.equal(mode, 0o755);
-  assert.match(wrapper, new RegExp(installDir.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.match(wrapper, /\$SCRIPT_DIR/);
+  assert.match(wrapper, /\.\.\/plugins\/across-context\/src\/cli\.js/);
+  assert.doesNotMatch(wrapper, new RegExp(acrossHome.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   assert.doesNotMatch(wrapper, new RegExp(process.cwd().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   assert.doesNotMatch(JSON.stringify(manifest), new RegExp(process.cwd().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   assert.doesNotMatch(JSON.stringify(manifest), /Documents\/projects/);
@@ -125,7 +138,9 @@ test("install host-plugin ignores protected env roots in product mode", async ()
   const { stdout } = await exec("node", [cli, "install", "host-plugin"], { env });
 
   assert.match(stdout, new RegExp(join(home, ".across", "plugins", "across-context").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
-  assert.match(await readFile(join(home, ".across", "bin", "across-context"), "utf8"), new RegExp(join(home, ".across", "plugins", "across-context").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  const wrapper = await readFile(join(home, ".across", "bin", "across-context"), "utf8");
+  assert.match(wrapper, /\.\.\/plugins\/across-context\/src\/cli\.js/);
+  assert.doesNotMatch(wrapper, new RegExp(join(home, ".across").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   await assert.rejects(
     stat(join(protectedRoot, "across-context")),
     /ENOENT/
@@ -161,7 +176,11 @@ test("install host-plugin accepts similarly named user directories in product mo
   ], { env });
 
   assert.equal(JSON.parse(await readFile(join(pluginRoot, "across-context", "manifest.json"), "utf8")).id, "across-context");
-  assert.match(await readFile(join(binDir, "across-context"), "utf8"), new RegExp(pluginRoot.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  const wrapper = await readFile(join(binDir, "across-context"), "utf8");
+  assert.match(wrapper, /\$SCRIPT_DIR/);
+  assert.doesNotMatch(wrapper, new RegExp(pluginRoot.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  const { stdout } = await exec(join(binDir, "across-context"), ["plugin-manifest", "--json"], { env });
+  assert.equal(JSON.parse(stdout).id, "across-context");
 });
 
 test("install host-plugin allows protected roots only in developer mode", async () => {
@@ -189,6 +208,10 @@ test("install host-plugin allows protected roots only in developer mode", async 
     protectedBin
   ], { env });
 
-  assert.match(await readFile(join(protectedBin, "across-context"), "utf8"), new RegExp(protectedRoot.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  const wrapper = await readFile(join(protectedBin, "across-context"), "utf8");
+  assert.match(wrapper, /\$SCRIPT_DIR/);
+  assert.doesNotMatch(wrapper, new RegExp(protectedRoot.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  const { stdout } = await exec(join(protectedBin, "across-context"), ["plugin-manifest", "--json"], { env });
+  assert.equal(JSON.parse(stdout).id, "across-context");
   assert.equal(JSON.parse(await readFile(join(protectedRoot, "across-context", "manifest.json"), "utf8")).id, "across-context");
 });

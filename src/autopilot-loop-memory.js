@@ -1,6 +1,7 @@
 const LOOP_MEMORY_SCHEMA = "across-loop-memory/1.0";
 const RECALL_SCHEMA = "across-context-loop-recall/1.0";
 const DIFF_SCHEMA = "across-context-loop-memory-diff/1.0";
+const CONTEXT_PACK_SCHEMA = "across-context-pack-summary/1.0";
 
 const REJECT_PATTERNS = [
   /\bsk-[A-Za-z0-9_-]{20,}\b/,
@@ -38,11 +39,14 @@ export async function rememberLoopMemory(vault, input = {}) {
     summary: input.summary || {},
     created_at: new Date().toISOString()
   });
+  const agentPluginId = input.agentPluginId || input.agent_plugin_id;
+  const tags = ["autopilot-loop", `spec:${specId}`, `run:${runId}`];
+  if (agentPluginId) tags.push(`agent-plugin:${agentPluginId}`);
   const entry = await vault.remember({
     text,
     scope: "global",
     type: "session",
-    tags: ["autopilot-loop", `spec:${specId}`, `run:${runId}`],
+    tags,
     source: "autopilot-loop",
     auto: true,
     status: "pending",
@@ -129,6 +133,79 @@ export async function loopMemoryDiff(vault, options = {}) {
   };
 }
 
+export async function contextPackSummary(vault, options = {}) {
+  const agentPluginId = options.agentPluginId || options.agent_plugin_id;
+  const memories = await vault.listMemories({
+    projectRoot: options.projectRoot || options.project,
+    includeGlobal: true,
+    includeProjects: options.includeProjects !== false,
+    status: options.status
+  });
+  const filtered = agentPluginId
+    ? memories.filter((entry) => memoryAgentPluginIds(entry).includes(agentPluginId))
+    : memories;
+  const groups = new Map();
+  const pluginIds = new Set();
+  for (const entry of filtered) {
+    for (const pluginId of memoryAgentPluginIds(entry)) pluginIds.add(pluginId);
+    const groupPluginId = memoryAgentPluginIds(entry)[0] || null;
+    const baseKey = [entry.scope || "unknown", entry.type || "note", entry.status || "active"].join(":");
+    const key = groupPluginId ? [groupPluginId, baseKey].join(":") : baseKey;
+    const group = groups.get(key) || {
+      id: key,
+      agent_plugin_id: groupPluginId,
+      scope: entry.scope || "unknown",
+      type: entry.type || "note",
+      status: entry.status || "active",
+      count: 0,
+      latest_updated_at: null,
+      tags: new Set()
+    };
+    group.count += 1;
+    if (!group.latest_updated_at || String(entry.updatedAt || entry.createdAt || "").localeCompare(group.latest_updated_at) > 0) {
+      group.latest_updated_at = entry.updatedAt || entry.createdAt || null;
+    }
+    for (const tag of entry.tags || []) group.tags.add(tag);
+    groups.set(key, group);
+  }
+  const packs = [...groups.values()]
+    .map((group) => ({ ...group, tags: [...group.tags].sort().slice(0, 12) }))
+    .sort((a, b) => a.id.localeCompare(b.id));
+  if (agentPluginId && packs.length === 0) {
+    packs.push(emptyAgentPluginPack(agentPluginId));
+    pluginIds.add(agentPluginId);
+  }
+  const pendingCount = filtered.filter((entry) => entry.status === "pending").length;
+  return {
+    schema_version: CONTEXT_PACK_SCHEMA,
+    provider: "across-context",
+    status: pendingCount ? "attention" : "passed",
+    summary: {
+      memory_count: filtered.length,
+      context_pack_count: packs.length,
+      pending_count: pendingCount,
+      agent_plugin_count: pluginIds.size,
+      filtered_agent_plugin_id: agentPluginId || null
+    },
+    packs
+  };
+}
+
+function emptyAgentPluginPack(agentPluginId) {
+  return {
+    id: `${agentPluginId}:empty`,
+    agent_plugin_id: agentPluginId,
+    scope: "agent-plugin",
+    type: "context-pack",
+    status: "empty",
+    count: 0,
+    latest_updated_at: null,
+    tags: [`agent-plugin:${agentPluginId}`],
+    virtual: true,
+    ready_for_agent_loading: true
+  };
+}
+
 export function enforceLoopMemoryPolicy(text) {
   if (!text) return { status: "rejected", reason: "Memory text is required.", text: "" };
   for (const pattern of REJECT_PATTERNS) {
@@ -153,6 +230,15 @@ function parseLoopMemory(text) {
   } catch {
     return null;
   }
+}
+
+function memoryAgentPluginIds(entry) {
+  const ids = [];
+  for (const tag of entry.tags || []) {
+    const text = String(tag || "");
+    if (text.startsWith("agent-plugin:")) ids.push(text.slice("agent-plugin:".length));
+  }
+  return [...new Set(ids.filter(Boolean))];
 }
 
 function required(value, name) {
