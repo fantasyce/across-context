@@ -42,6 +42,16 @@ Use it when you want agents to remember:
 - Protects the vault with a memory policy engine
 - Provides a local dashboard, explainable hybrid search, pending approval, lifecycle controls, MCP resources and prompts, team export, and deterministic hooks
 
+### New in v0.8.1: Generic Agent Plugin Context Surface
+
+- Adds host-plugin context pack and search surfaces that can be consumed by
+  Codex, Claude Desktop, Claude CLI, AAA, or another MCP-capable host without
+  depending on a source checkout.
+- Hardens Codex and Claude installer output so managed wrappers and MCP
+  commands resolve through `~/.across/bin`.
+- Keeps runtime state, memory data, and generated integration files under the
+  unified `~/.across` ecosystem root.
+
 ### New in v0.8.0: Loop Engineering Memory Surface
 
 - Adds Autopilot loop memory commands for `remember-loop`, `recall-loop`,
@@ -172,7 +182,7 @@ operating instructions, and automatic memory needs guardrails.
 
 ### Install
 
-The current open-source distribution is GitHub-first. The `v0.8.0` tag and
+The current open-source distribution is GitHub-first. The `v0.8.1` tag and
 GitHub source archives are the canonical release artifacts; no extra npm
 tarball asset is attached to the GitHub Release, and npm registry publication is
 not required for hosts to install or run the plugin.
@@ -189,7 +199,7 @@ Or build and install a local npm tarball from the checked-out release tag:
 
 ```bash
 npm pack
-npm install -g ./across-context-0.8.0.tgz
+npm install -g ./across-context-0.8.1.tgz
 ```
 
 Verify:
@@ -481,6 +491,14 @@ across-context setup --all --yes
 - 生成 `CLAUDE.md`
 - 生成 Cursor MCP 配置和规则
 - 注入自动读写记忆的行为规则
+
+### v0.8.1 新能力
+
+- 新增通用 Agent 插件上下文包和搜索接口，Codex、Claude Desktop、Claude CLI、
+  AAA 或其他 MCP host 都可以通过托管插件边界使用。
+- 强化 Codex 和 Claude 安装器输出，使 MCP 命令通过 `~/.across/bin` 的托管
+  wrapper 解析，不依赖开发机源码目录。
+- 继续把运行状态、记忆数据和生成的集成配置收敛在统一的 `~/.across` 生态根目录。
 
 ### v0.8.0 新能力
 

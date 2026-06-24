@@ -22,6 +22,8 @@ export async function renderPluginManifest(options = {}) {
   const binDir = resolve(ecosystemBinDir(binEnv));
   const installDir = resolve(options.installDir || join(pluginRootPath, COMPONENT_ID));
   const commandPath = resolve(options.commandPath || join(binDir, "across-context"));
+  const publicPaths = options.publicPaths === true;
+  const manifestCommandPath = publicPaths ? userRelativeAcrossPath(commandPath, envWithHome) : commandPath;
   const packageJson = await readPackageJson(options.sourceRoot || PACKAGE_ROOT);
 
   return {
@@ -39,6 +41,8 @@ export async function renderPluginManifest(options = {}) {
       agentLoopMemoryHooks: true,
       agentLoopMemoryHooksV2: true,
       pendingLoopSummaries: true,
+      contextPacks: true,
+      agentPluginContextPacks: true,
       allProjectPendingReview: true,
       lifecycle: true,
       dashboard: true,
@@ -66,7 +70,7 @@ export async function renderPluginManifest(options = {}) {
     lifecycle: {
       install: {
         hostManaged: true,
-        command: commandPath,
+        command: manifestCommandPath,
         args: ["install", "host-plugin"],
         idempotent: true
       },
@@ -80,7 +84,7 @@ export async function renderPluginManifest(options = {}) {
       },
       uninstall: {
         hostManaged: true,
-        command: commandPath,
+        command: manifestCommandPath,
         args: ["uninstall", "host-plugin"],
         removesRuntime: true,
         preservesData: true
@@ -88,28 +92,32 @@ export async function renderPluginManifest(options = {}) {
     },
     entrypoints: {
       cli: {
-        command: commandPath
+        command: manifestCommandPath
       },
       mcp: {
-        command: commandPath,
+        command: manifestCommandPath,
         args: ["mcp"],
         transport: "stdio"
       },
       dashboard: {
-        command: commandPath,
+        command: manifestCommandPath,
         args: ["dashboard"]
       },
       agentCard: {
-        command: commandPath,
+        command: manifestCommandPath,
         args: ["agent-card", "--json"]
       },
       status: {
-        command: commandPath,
+        command: manifestCommandPath,
         args: ["plugin-status", "--json"]
       },
       health: {
-        command: commandPath,
+        command: manifestCommandPath,
         args: ["health", "--json"]
+      },
+      contextPacks: {
+        command: manifestCommandPath,
+        args: ["context-packs", "--all-projects", "--json"]
       }
     },
     protocols: {
@@ -129,7 +137,7 @@ export async function renderPluginManifest(options = {}) {
         }
       },
       cli: {
-        command: commandPath
+        command: manifestCommandPath
       },
       a2a: {
         role: "memory-context-provider",
@@ -137,13 +145,13 @@ export async function renderPluginManifest(options = {}) {
       }
     },
     paths: {
-      plugin: installDir,
-      bin: binDir,
-      data: componentDataHome(COMPONENT_ID, envWithHome),
-      config: join(acrossHome, "config", COMPONENT_ID),
-      run: join(acrossHome, "run", COMPONENT_ID),
-      logs: join(acrossHome, "logs", COMPONENT_ID),
-      cache: join(acrossHome, "cache", COMPONENT_ID)
+      plugin: publicPaths ? userRelativeAcrossPath(installDir, envWithHome) : installDir,
+      bin: publicPaths ? userRelativeAcrossPath(binDir, envWithHome) : binDir,
+      data: publicPaths ? userRelativeAcrossPath(componentDataHome(COMPONENT_ID, envWithHome), envWithHome) : componentDataHome(COMPONENT_ID, envWithHome),
+      config: publicPaths ? userRelativeAcrossPath(join(acrossHome, "config", COMPONENT_ID), envWithHome) : join(acrossHome, "config", COMPONENT_ID),
+      run: publicPaths ? userRelativeAcrossPath(join(acrossHome, "run", COMPONENT_ID), envWithHome) : join(acrossHome, "run", COMPONENT_ID),
+      logs: publicPaths ? userRelativeAcrossPath(join(acrossHome, "logs", COMPONENT_ID), envWithHome) : join(acrossHome, "logs", COMPONENT_ID),
+      cache: publicPaths ? userRelativeAcrossPath(join(acrossHome, "cache", COMPONENT_ID), envWithHome) : join(acrossHome, "cache", COMPONENT_ID)
     },
     environment: {
       ecosystemHome: "ACROSS_HOME",
@@ -152,6 +160,17 @@ export async function renderPluginManifest(options = {}) {
       binHome: "ACROSS_BIN_HOME"
     }
   };
+}
+
+function userRelativeAcrossPath(path, env) {
+  const home = resolve(env.HOME || process.env.HOME || "");
+  const defaultAcrossHome = resolve(home, ".across");
+  const resolved = resolve(path);
+  if (resolved === defaultAcrossHome) return "~/.across";
+  if (resolved.startsWith(`${defaultAcrossHome}/`)) {
+    return `~/.across/${resolved.slice(defaultAcrossHome.length + 1)}`;
+  }
+  return resolved;
 }
 
 export async function renderPluginStatus(options = {}) {

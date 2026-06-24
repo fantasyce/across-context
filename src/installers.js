@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
-import { access, chmod, cp, mkdir, realpath, rm, rename, writeFile } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { access, chmod, cp, mkdir, readFile, realpath, rm, rename, writeFile } from "node:fs/promises";
+import { dirname, join, relative, resolve } from "node:path";
 import { exportContext } from "./exporters.js";
 import { COMPONENT_ID, ecosystemBinDir, ecosystemHome, pluginRoot } from "./paths.js";
 import { renderPluginManifest } from "./plugin-manifest.js";
@@ -46,6 +46,29 @@ export async function installAgent(vault, target, options = {}) {
       command: "claude mcp add -s user across-context -- across-context mcp"
     };
   }
+  if (target === "codex-mcp") {
+    return {
+      target: "codex-mcp",
+      command: "codex mcp add across-context -- across-context mcp"
+    };
+  }
+  if (target === "claude-desktop" || target === "claude-code-desktop") {
+    const configFile = resolve(options.configFile || defaultClaudeDesktopConfigFile(options.env || process.env));
+    const payload = await readJsonFile(configFile, {});
+    const next = {
+      ...payload,
+      mcpServers: {
+        ...(payload.mcpServers || {}),
+        "across-context": {
+          command: options.command || "across-context",
+          args: options.args || ["mcp"]
+        }
+      }
+    };
+    await mkdir(dirname(configFile), { recursive: true });
+    await writeFile(configFile, `${JSON.stringify(next, null, 2)}\n`, "utf8");
+    return { path: configFile, target: "claude-desktop" };
+  }
   throw new Error(`Unknown install target: ${target}`);
 }
 
@@ -86,11 +109,11 @@ export async function installHostPlugin(options = {}) {
   }
 
   await mkdir(binDir, { recursive: true });
-  await writeFile(commandPath, `#!/bin/sh\nexec /usr/bin/env node ${shellQuote(join(installDir, "src", "cli.js"))} "$@"\n`, "utf8");
+  await writeFile(commandPath, renderNodeWrapper(commandPath, join(installDir, "src", "cli.js")), "utf8");
   await chmod(commandPath, 0o755);
   await writeFile(
     join(installDir, "manifest.json"),
-    `${JSON.stringify(await renderPluginManifest({ acrossHome, commandPath, installDir, sourceRoot }), null, 2)}\n`,
+    `${JSON.stringify(await renderPluginManifest({ acrossHome, commandPath, installDir, sourceRoot, publicPaths: true }), null, 2)}\n`,
     "utf8"
   );
 
@@ -156,6 +179,29 @@ async function realpathOrResolve(path) {
 
 function shellQuote(value) {
   return `'${String(value).replaceAll("'", "'\\''")}'`;
+}
+
+function renderNodeWrapper(commandPath, targetPath) {
+  const targetRelativePath = relative(dirname(commandPath), targetPath) || ".";
+  return [
+    "#!/bin/sh",
+    "SCRIPT_DIR=$(CDPATH= cd \"$(dirname \"$0\")\" && pwd)",
+    `exec /usr/bin/env node "$SCRIPT_DIR"/${shellQuote(targetRelativePath)} "$@"`,
+    ""
+  ].join("\n");
+}
+
+async function readJsonFile(path, fallback) {
+  try {
+    return JSON.parse(await readFile(path, "utf8"));
+  } catch (error) {
+    if (error.code === "ENOENT") return fallback;
+    throw error;
+  }
+}
+
+function defaultClaudeDesktopConfigFile(env) {
+  return join(env.HOME || process.env.HOME || "", "Library", "Application Support", "Claude", "claude_desktop_config.json");
 }
 
 function assertHostPluginRuntimePathAllowed(name, value, env) {

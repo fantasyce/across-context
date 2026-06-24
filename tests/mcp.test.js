@@ -20,6 +20,7 @@ test("MCP server definition exposes memory tools backed by the vault", async () 
       "get_agent_card",
       "get_agent_loop_memory_metrics",
       "get_agent_loop_memory_policy",
+      "get_context_packs",
       "get_loop_history",
       "get_project_context",
       "recall_loop_memory",
@@ -53,6 +54,7 @@ test("MCP server definition exposes resources and prompts", async () => {
   assert.ok(definition.resources.some((resource) => resource.uri === "across-context://stats"));
   assert.ok(definition.resources.some((resource) => resource.uri === "across-context://agent-loop-memory-policy"));
   assert.ok(definition.resources.some((resource) => resource.uri === "across-context://agent-loop-memory-metrics"));
+  assert.ok(definition.resources.some((resource) => resource.uri === "across-context://context-packs"));
   assert.ok(definition.prompts.some((prompt) => prompt.name === "task-start-context"));
   assert.ok(definition.prompts.some((prompt) => prompt.name === "agent-loop-memory-policy"));
 
@@ -81,6 +83,10 @@ test("MCP server definition exposes resources and prompts", async () => {
   const metricsResource = await definition.readResource("across-context://agent-loop-memory-metrics", {});
   const metrics = JSON.parse(metricsResource.contents[0].text);
   assert.equal(metrics.schema_version, "agent-loop-memory-metrics/1.0");
+
+  const contextPacksResource = await definition.readResource("across-context://context-packs", {});
+  const contextPacks = JSON.parse(contextPacksResource.contents[0].text);
+  assert.equal(contextPacks.schema_version, "across-context-pack-summary/1.0");
 });
 
 test("MCP exposes Agent Loop memory metrics without raw memory text", async () => {
@@ -126,4 +132,102 @@ test("MCP review_pending_memories includes project memories when no project is s
   const result = await review.handler({});
 
   assert.match(JSON.stringify(result), /Project pending memory visible from review/);
+});
+
+test("MCP exposes context packs filtered by generic agent plugin id", async () => {
+  const home = await mkdtemp(join(tmpdir(), "across-context-mcp-agent-plugin-packs-"));
+  const vault = new ContextVault({ home });
+  const definition = createContextMcpServerDefinition(vault);
+  await vault.remember({
+    scope: "global",
+    type: "note",
+    text: "Echo agent active context",
+    status: "active",
+    tags: ["agent-plugin:demo.echo-agent"]
+  });
+  await vault.remember({
+    scope: "global",
+    type: "note",
+    text: "Other agent active context",
+    status: "active",
+    tags: ["agent-plugin:other.agent"]
+  });
+  const rememberLoop = definition.tools.find((tool) => tool.name === "remember_loop_memory");
+  await rememberLoop.handler({
+    specId: "demo-spec",
+    runId: "demo-run",
+    text: "Echo agent loop memory",
+    agentPluginId: "demo.echo-agent"
+  });
+  const getContextPacks = definition.tools.find((tool) => tool.name === "get_context_packs");
+
+  const result = await getContextPacks.handler({ agentPluginId: "demo.echo-agent" });
+  const payload = JSON.parse(result.content[0].text);
+
+  assert.equal(payload.schema_version, "across-context-pack-summary/1.0");
+  assert.equal(payload.summary.filtered_agent_plugin_id, "demo.echo-agent");
+  assert.equal(payload.summary.memory_count, 2);
+  assert.equal(payload.summary.agent_plugin_count, 1);
+  assert.ok(payload.packs.every((pack) => pack.agent_plugin_id === "demo.echo-agent"));
+});
+
+test("search_context prioritizes agent-plugin scoped memory when agentPluginId is supplied", async () => {
+  const home = await mkdtemp(join(tmpdir(), "across-context-mcp-agent-plugin-search-"));
+  const vault = new ContextVault({ home });
+  const definition = createContextMcpServerDefinition(vault);
+  await vault.remember({
+    scope: "global",
+    type: "note",
+    text: "Generic risk memory should be fallback only.",
+    status: "active",
+    tags: ["risk"]
+  });
+  await vault.remember({
+    scope: "global",
+    type: "note",
+    text: "Echo agent risk memory should be first.",
+    status: "active",
+    tags: ["risk", "agent-plugin:demo.echo-agent"]
+  });
+  const search = definition.tools.find((tool) => tool.name === "search_context");
+
+  const result = await search.handler({
+    query: "risk",
+    agentPluginId: "demo.echo-agent",
+    limit: 2
+  });
+  const payload = result.structuredContent;
+
+  assert.match(result.content[0].text.split("\n")[0], /Echo agent risk memory/);
+  assert.equal(payload.results[0].explanation.agentPluginScope, "matched");
+  assert.equal(payload.results[1].explanation.agentPluginScope, "fallback_global");
+
+  const scopedOnly = await search.handler({
+    query: "risk",
+    agentPluginId: "demo.echo-agent",
+    agentScope: "only",
+    limit: 2
+  });
+  const scopedPayload = scopedOnly.structuredContent;
+
+  assert.equal(scopedPayload.results.length, 1);
+  assert.match(scopedPayload.results[0].entry.text, /Echo agent risk memory/);
+});
+
+test("MCP exposes a virtual empty context pack for a new generic agent plugin", async () => {
+  const home = await mkdtemp(join(tmpdir(), "across-context-mcp-empty-agent-plugin-pack-"));
+  const vault = new ContextVault({ home });
+  const definition = createContextMcpServerDefinition(vault);
+  const getContextPacks = definition.tools.find((tool) => tool.name === "get_context_packs");
+
+  const result = await getContextPacks.handler({ agentPluginId: "demo.echo-agent" });
+  const payload = JSON.parse(result.content[0].text);
+
+  assert.equal(payload.status, "passed");
+  assert.equal(payload.summary.memory_count, 0);
+  assert.equal(payload.summary.context_pack_count, 1);
+  assert.equal(payload.summary.agent_plugin_count, 1);
+  assert.equal(payload.packs[0].id, "demo.echo-agent:empty");
+  assert.equal(payload.packs[0].virtual, true);
+  assert.equal(payload.packs[0].ready_for_agent_loading, true);
 });

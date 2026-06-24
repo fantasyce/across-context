@@ -10,7 +10,7 @@ import { renderAgentLoopMemoryPolicy } from "./loop-memory-policy.js";
 import { runHook } from "./hooks.js";
 import { startDashboard } from "./dashboard.js";
 import { renderHealth, renderPluginManifest, renderPluginStatus } from "./plugin-manifest.js";
-import { loopHistory, loopMemoryDiff, recallLoopMemory, rememberLoopMemory } from "./autopilot-loop-memory.js";
+import { contextPackSummary, loopHistory, loopMemoryDiff, recallLoopMemory, rememberLoopMemory } from "./autopilot-loop-memory.js";
 
 const vault = new ContextVault();
 
@@ -34,7 +34,7 @@ async function main(argv) {
       text,
       scope: parsed.scope || "global",
       type: parsed.type || "note",
-      tags: parsed.tag || parsed.tags || [],
+      tags: mergeTags(parsed.tag || parsed.tags || [], parsed["agent-plugin"] ? [`agent-plugin:${parsed["agent-plugin"]}`] : []),
       projectRoot: parsed.project,
       source: "cli",
       auto: Boolean(parsed.auto),
@@ -197,6 +197,18 @@ async function main(argv) {
     return;
   }
 
+  if (command === "context-packs") {
+    const parsed = parseArgs(rest);
+    const summary = await contextPackSummary(vault, {
+      projectRoot: parsed.project,
+      includeProjects: Boolean(parsed["all-projects"]),
+      status: parsed.status,
+      agentPluginId: parsed["agent-plugin"]
+    });
+    console.log(parsed.json ? JSON.stringify(summary, null, 2) : formatContextPackSummary(summary));
+    return;
+  }
+
   if (command === "remember-loop") {
     const parsed = parseArgs(rest);
     const summary = parsed["summary-json"] ? JSON.parse(parsed["summary-json"]) : {};
@@ -204,7 +216,8 @@ async function main(argv) {
       specId: parsed["spec-id"],
       runId: parsed["run-id"],
       text: parsed.text || parsed.positionals.join(" "),
-      summary
+      summary,
+      agentPluginId: parsed["agent-plugin"]
     });
     console.log(parsed.json ? JSON.stringify(result, null, 2) : `${result.status}: ${result.memory?.id || result.reason}`);
     return;
@@ -323,7 +336,7 @@ async function main(argv) {
   if (command === "install") {
     const [target, ...installRest] = rest;
     if (!target) {
-      throw new Error("Usage: across-context install <codex|cursor|claude-code|host-plugin> [--project path] [--stdout] [--across-home path]");
+      throw new Error("Usage: across-context install <codex|codex-mcp|cursor|claude-code|claude-desktop|host-plugin> [--project path] [--stdout] [--config-file path] [--across-home path]");
     }
     const parsed = parseArgs(installRest);
     if (target === "host-plugin") {
@@ -343,7 +356,10 @@ async function main(argv) {
     if (target === "codex" || target === "cursor") {
       await ensureProfile(projectRoot);
     }
-    const result = await installAgent(vault, target, { projectRoot });
+    const result = await installAgent(vault, target, {
+      projectRoot,
+      configFile: parsed["config-file"]
+    });
     if (parsed.stdout || result.command) {
       console.log(result.command || JSON.stringify(result, null, 2));
     } else {
@@ -478,6 +494,8 @@ Commands:
   loop-memory-policy [--json]           Print agent-loop memory hook policy
   loop-memory-metrics [--project path|--all-projects] [--json]
                                         Print aggregate agent-loop memory candidate metrics
+  context-packs [--project path|--all-projects] [--status pending|active] [--agent-plugin id] [--json]
+                                        Summarize memories into Context Pack / Memory OS groups
   remember-loop --spec-id id --run-id id --text text --summary-json '{}' [--json]
                                         Store a pending loop memory summary with policy enforcement
   recall-loop --spec-id id --limit 10 [--json]
@@ -494,7 +512,7 @@ Commands:
   hook task-end --summary <text> [--project path]
   project learn [path]                  Learn project commands and metadata
   export <agents|claude|cursor|markdown> [--project path] [--stdout]
-  install <codex|cursor|claude-code> [--project path] [--stdout]
+  install <codex|codex-mcp|cursor|claude-code|claude-desktop> [--project path] [--stdout] [--config-file path]
   install host-plugin [--across-home path] [--plugin-root path] [--bin-dir path]
                                         Install runtime for host apps under ~/.across
                                         --plugin-root/--bin-dir are development-only overrides
@@ -529,6 +547,24 @@ function formatLoopMemoryMetrics(metrics) {
     `duplicates reused: ${totals.duplicate_reused_count || 0}`,
     `denied: ${totals.denied_count || 0}`
   ].join("\n");
+}
+
+function formatContextPackSummary(summary) {
+  const lines = [
+    `context packs: ${summary.summary.context_pack_count}`,
+    `memories: ${summary.summary.memory_count}`,
+    `pending: ${summary.summary.pending_count}`,
+    `agent plugins: ${summary.summary.agent_plugin_count || 0}`
+  ];
+  for (const pack of summary.packs || []) {
+    lines.push(`${pack.id}: ${pack.count}`);
+  }
+  return lines.join("\n");
+}
+
+function mergeTags(base, extra) {
+  const values = Array.isArray(base) ? base : base ? [base] : [];
+  return [...new Set([...values, ...extra].map(String).filter(Boolean))];
 }
 
 function formatRecallLoop(result) {

@@ -3,12 +3,12 @@ import { exportContext, renderContextDocument } from "./exporters.js";
 import { learnProject } from "./project.js";
 import { renderAgentCard } from "./agent-card.js";
 import { renderAgentLoopMemoryPolicy, renderAgentLoopMemoryPromptText } from "./loop-memory-policy.js";
-import { loopHistory, loopMemoryDiff, recallLoopMemory, rememberLoopMemory } from "./autopilot-loop-memory.js";
+import { contextPackSummary, loopHistory, loopMemoryDiff, recallLoopMemory, rememberLoopMemory } from "./autopilot-loop-memory.js";
 
 export function createContextMcpServerDefinition(vault) {
   return {
     name: "across-context",
-    version: "0.8.0",
+    version: "0.8.1",
     resources: [
       {
         uri: "across-context://agent-card",
@@ -44,6 +44,12 @@ export function createContextMcpServerDefinition(vault) {
         uri: "across-context://agent-loop-memory-metrics",
         name: "Agent Loop Memory Metrics",
         description: "Aggregate lifecycle metrics for structured Agent Loop memory candidates.",
+        mimeType: "application/json"
+      },
+      {
+        uri: "across-context://context-packs",
+        name: "Context Packs",
+        description: "Grouped Memory OS style context packs, including optional generic agent plugin tags.",
         mimeType: "application/json"
       }
     ],
@@ -118,22 +124,33 @@ export function createContextMcpServerDefinition(vault) {
             projectRoot: { type: "string" },
             limit: { type: "number", default: 10 },
             mode: { type: "string", enum: ["keyword", "semantic", "hybrid"], default: "hybrid" },
-            status: { type: "string", enum: ["pending", "active", "pinned", "archived", "expired"] }
+            status: { type: "string", enum: ["pending", "active", "pinned", "archived", "expired"] },
+            agentPluginId: { type: "string" },
+            agent_plugin_id: { type: "string" },
+            agentScope: { type: "string", enum: ["prefer", "only", "fallback"], default: "prefer" },
+            agent_scope: { type: "string", enum: ["prefer", "only", "fallback"], default: "prefer" }
           },
           required: ["query"]
         },
         handler: async (args) => {
+          const agentPluginId = args.agentPluginId || args.agent_plugin_id;
+          const requestedLimit = args.limit || 10;
           const results = await vault.search({
             query: args.query,
             projectRoot: args.projectRoot,
-            limit: args.limit || 10,
+            limit: agentPluginId ? Math.max(requestedLimit * 4, 20) : requestedLimit,
             mode: args.mode || "hybrid",
             status: args.status,
             includeGlobal: true
           });
+          const scopedResults = prioritizeAgentPluginResults(results, {
+            agentPluginId,
+            agentScope: args.agentScope || args.agent_scope || "prefer",
+            limit: requestedLimit
+          });
           return textResult(
-            results.map((result) => `- ${result.entry.text}`).join("\n") || "No matching context found.",
-            { results }
+            scopedResults.map((result) => `- ${result.entry.text}`).join("\n") || "No matching context found.",
+            { results: scopedResults }
           );
         }
       },
@@ -229,6 +246,29 @@ export function createContextMcpServerDefinition(vault) {
         }
       },
       {
+        name: "get_context_packs",
+        description: "Summarize memories into Context Pack / Memory OS groups for generic agent plugin loading.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            projectRoot: { type: "string" },
+            includeProjects: { type: "boolean", default: true },
+            status: { type: "string", enum: ["pending", "active", "pinned", "archived", "expired"] },
+            agentPluginId: { type: "string" },
+            agent_plugin_id: { type: "string" }
+          }
+        },
+        handler: async (args) => {
+          const result = await contextPackSummary(vault, {
+            projectRoot: args.projectRoot,
+            includeProjects: args.includeProjects !== false,
+            status: args.status,
+            agentPluginId: args.agentPluginId || args.agent_plugin_id
+          });
+          return textResult(JSON.stringify(result, null, 2), { result });
+        }
+      },
+      {
         name: "remember_loop_memory",
         description: "Store a pending Loop Engineering memory summary with policy enforcement.",
         inputSchema: {
@@ -237,7 +277,9 @@ export function createContextMcpServerDefinition(vault) {
             specId: { type: "string" },
             runId: { type: "string" },
             text: { type: "string" },
-            summary: { type: "object" }
+            summary: { type: "object" },
+            agentPluginId: { type: "string" },
+            agent_plugin_id: { type: "string" }
           },
           required: ["specId", "runId", "text"]
         },
@@ -351,6 +393,15 @@ async function readResource(vault, uri, args = {}) {
     });
     return resourceResult(uri, "application/json", JSON.stringify(metrics, null, 2));
   }
+  if (uri === "across-context://context-packs") {
+    const summary = await contextPackSummary(vault, {
+      projectRoot: args.projectRoot,
+      includeProjects: args.includeProjects !== false,
+      status: args.status,
+      agentPluginId: args.agentPluginId || args.agent_plugin_id
+    });
+    return resourceResult(uri, "application/json", JSON.stringify(summary, null, 2));
+  }
   throw new Error(`Unknown resource: ${uri}`);
 }
 
@@ -420,6 +471,39 @@ function promptResult(name, description, text) {
     ],
     name
   };
+}
+
+function prioritizeAgentPluginResults(results, { agentPluginId, agentScope = "prefer", limit = 10 } = {}) {
+  if (!agentPluginId) return results.slice(0, limit);
+  const scoped = [];
+  const fallback = [];
+  for (const result of results) {
+    const pluginIds = resultAgentPluginIds(result);
+    const matched = pluginIds.includes(agentPluginId);
+    const annotated = {
+      ...result,
+      score: matched ? Math.round((Number(result.score || 0) + 100) * 1000) / 1000 : result.score,
+      explanation: {
+        ...(result.explanation || {}),
+        agentPluginScope: matched ? "matched" : "fallback_global",
+        filteredAgentPluginId: agentPluginId
+      }
+    };
+    if (matched) scoped.push(annotated);
+    else fallback.push(annotated);
+  }
+  if (agentScope === "only") return scoped.slice(0, limit);
+  if (agentScope === "fallback") return [...scoped, ...fallback].slice(0, limit);
+  return (scoped.length ? [...scoped, ...fallback] : fallback).slice(0, limit);
+}
+
+function resultAgentPluginIds(result) {
+  const tags = result?.entry?.tags || [];
+  return [...new Set(tags
+    .map((tag) => String(tag || ""))
+    .filter((tag) => tag.startsWith("agent-plugin:"))
+    .map((tag) => tag.slice("agent-plugin:".length))
+    .filter(Boolean))];
 }
 
 export function textResult(text, structuredContent) {
