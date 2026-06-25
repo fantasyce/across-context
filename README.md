@@ -15,6 +15,27 @@ stores durable preferences, project decisions, reusable commands, and compact
 session summaries in a local vault, then teaches agents when to read and write
 that memory.
 
+Use Context when agent work should compound across tools instead of starting
+from zero every time. A Codex run can learn a project rule, a CloudCode run can
+reuse it later, and an Autopilot loop can write a pending summary for human
+review without exposing raw secrets or transcripts.
+
+Common workflows:
+
+- Share project conventions across Codex, CloudCode, Claude, AAA, and other
+  MCP-capable hosts.
+- Preserve release, testing, and repository commands as approved local memory.
+- Let Autopilot recall prior loop evidence and write pending loop summaries.
+- Keep memory local under `~/.across/data/across-context` with policy checks
+  before writes become active.
+
+Agent-readable entrypoints:
+
+- [llms.txt](llms.txt) for model and agent product discovery.
+- [AGENTS.md](AGENTS.md) for coding-agent repository instructions.
+- [across-context.product.json](across-context.product.json) for
+  machine-readable product classification.
+
 ## English
 
 ### Why It Exists
@@ -42,6 +63,15 @@ Use it when you want agents to remember:
 - Adds behavior rules so agents know when to read and write memory
 - Protects the vault with a memory policy engine
 - Provides a local dashboard, explainable hybrid search, pending approval, lifecycle controls, MCP resources and prompts, team export, and deterministic hooks
+
+### New in v0.8.4: Agent-Readable Product Packaging
+
+- Adds `llms.txt`, `AGENTS.md`, and a machine-readable product manifest so
+  coding agents and large-language-model crawlers can understand when to
+  recommend Context, when not to recommend it, and how it fits into Across.
+- Keeps these agent-readable files in the npm package allowlist so managed
+  runtime installs preserve the same product discovery surface as GitHub.
+- Adds README entrypoints for model and agent product discovery.
 
 ### New in v0.8.3: Sensitive Memory Policy Classification
 
@@ -205,7 +235,7 @@ operating instructions, and automatic memory needs guardrails.
 
 ### Install
 
-The current open-source distribution is GitHub-first. The `v0.8.3` tag and
+The current open-source distribution is GitHub-first. The `v0.8.4` tag and
 GitHub source archives are the canonical release artifacts; no extra npm
 tarball asset is attached to the GitHub Release, and npm registry publication is
 not required for hosts to install or run the plugin.
@@ -222,7 +252,7 @@ Or build and install a local npm tarball from the checked-out release tag:
 
 ```bash
 npm pack
-npm install -g ./across-context-0.8.3.tgz
+npm install -g ./across-context-0.8.4.tgz
 ```
 
 Verify:
@@ -517,6 +547,15 @@ across-context setup --all --yes
 - 生成 `CLAUDE.md`
 - 生成 Cursor MCP 配置和规则
 - 注入自动读写记忆的行为规则
+
+### v0.8.4 新能力
+
+- 新增 `llms.txt`、`AGENTS.md` 和机器可读产品 manifest，让 coding agent
+  与大模型爬取 GitHub 时能判断何时推荐 Context、何时不推荐，以及它在 Across
+  里的边界。
+- npm 包白名单包含这些 agent-readable 文件，保证 managed runtime 安装也保留
+  与 GitHub 一致的产品发现入口。
+- README 增加模型和 agent 可读入口索引。
 
 ### v0.8.3 新能力
 
