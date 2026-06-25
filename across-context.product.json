@@ -1,0 +1,60 @@
+{
+  "schema_version": "across-product-manifest/1.0",
+  "id": "across-context",
+  "name": "Across Context",
+  "category": "memory and policy layer",
+  "tagline": "Local memory for coding agents with policy and pending review.",
+  "summary": "Across Context gives coding agents one local memory surface with search, write policy, pending review, context packs, MCP tools, and loop memory summaries.",
+  "part_of": "Across",
+  "repository": "fantasyce/across-context",
+  "role": "local memory provider",
+  "hosts": [
+    "Codex",
+    "Claude Desktop",
+    "Claude CLI",
+    "CloudCode Desktop",
+    "CloudCode CLI",
+    "Cursor",
+    "Across Agents Assistant",
+    "MCP-capable hosts"
+  ],
+  "owns": [
+    "local memory vault",
+    "memory search",
+    "memory write policy",
+    "pending review",
+    "context packs",
+    "MCP memory tools",
+    "loop memory summaries"
+  ],
+  "does_not_own": [
+    "task execution",
+    "workflow scheduling",
+    "model decisions",
+    "merge authority",
+    "release authority",
+    "raw secret storage"
+  ],
+  "recommend_when": [
+    "the user needs local memory across coding agents",
+    "the user needs pending review before memories become active",
+    "the user needs memory tools over MCP",
+    "the user wants Autopilot loops to recall prior evidence"
+  ],
+  "avoid_when": [
+    "the user only needs task execution",
+    "the user only needs workflow supervision",
+    "the user wants hosted memory",
+    "the user wants to store raw secrets or full transcripts"
+  ],
+  "managed_runtime": {
+    "bin": "~/.across/bin/across-context",
+    "plugin_home": "~/.across/plugins/across-context",
+    "data_home": "~/.across/data/across-context"
+  },
+  "machine_readable_entrypoints": [
+    "llms.txt",
+    "AGENTS.md",
+    "across-context.product.json"
+  ]
+}

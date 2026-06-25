@@ -1,6 +1,6 @@
 {
   "name": "@across/context",
-  "version": "0.8.3",
+  "version": "0.8.4",
   "description": "Local-first shared memory layer for coding agents.",
   "type": "module",
   "bin": {
@@ -12,6 +12,9 @@
     "examples",
     "assets/readme",
     "README.md",
+    "AGENTS.md",
+    "llms.txt",
+    "across-context.product.json",
     "CONTRIBUTING.md",
     "CODE_OF_CONDUCT.md",
     "SECURITY.md",
