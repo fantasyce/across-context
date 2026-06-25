@@ -2,7 +2,7 @@
 
 > Local memory and policy layer for coding agents.
 
-Across Context gives Codex, Claude, CloudCode, AAA, and other MCP-capable hosts
+Across Context gives Codex, Claude Code, Claude Desktop, AAA, and other MCP-capable hosts
 one local memory surface with search, write policy, pending review, context
 packs, and loop memory summaries.
 

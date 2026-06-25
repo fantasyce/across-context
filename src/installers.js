@@ -52,7 +52,7 @@ export async function installAgent(vault, target, options = {}) {
       command: "codex mcp add across-context -- across-context mcp"
     };
   }
-  if (target === "claude-desktop" || target === "claude-code-desktop") {
+  if (target === "claude-desktop") {
     const configFile = resolve(options.configFile || defaultClaudeDesktopConfigFile(options.env || process.env));
     const payload = await readJsonFile(configFile, {});
     const next = {
