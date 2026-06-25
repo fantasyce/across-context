@@ -1,6 +1,6 @@
 {
   "name": "@across/context",
-  "version": "0.8.4",
+  "version": "0.8.5",
   "description": "Local-first shared memory layer for coding agents.",
   "type": "module",
   "bin": {
