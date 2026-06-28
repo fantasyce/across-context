@@ -40,6 +40,8 @@ export async function renderPluginManifest(options = {}) {
       pendingApproval: true,
       agentLoopMemoryHooks: true,
       agentLoopMemoryHooksV2: true,
+      evidenceGraphMemory: true,
+      agentTeamTrustReceipts: true,
       pendingLoopSummaries: true,
       contextPacks: true,
       agentPluginContextPacks: true,
@@ -126,7 +128,11 @@ export async function renderPluginManifest(options = {}) {
         tools: {
           searchContext: "search_context",
           rememberContext: "remember_context",
-          getAgentLoopMemoryPolicy: "get_agent_loop_memory_policy"
+          getAgentLoopMemoryPolicy: "get_agent_loop_memory_policy",
+          rememberEvidenceMemory: "remember_evidence_memory",
+          recallEvidenceMemory: "recall_evidence_memory",
+          rememberAgentTeamReceipt: "remember_agent_team_receipt",
+          recallAgentTeamReceipts: "recall_agent_team_receipts"
         },
         resources: true,
         prompts: {

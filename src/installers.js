@@ -25,49 +25,55 @@ export async function installAgent(vault, target, options = {}) {
     });
   }
   if (target === "cursor") {
+    const runtime = await installHostPlugin(options);
     const projectRoot = resolve(options.projectRoot || process.cwd());
     const mcpPath = join(projectRoot, ".cursor", "mcp.json");
+    const server = renderHostMcpServer(COMPONENT_ID, runtime, options.env || process.env);
     const payload = {
       mcpServers: {
-        "across-context": {
-          command: "across-context",
-          args: ["mcp"]
-        }
+        "across-context": server
       }
     };
     await mkdir(dirname(mcpPath), { recursive: true });
     await writeFile(mcpPath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
     await exportContext(vault, { projectRoot, target: "cursor" });
-    return { path: mcpPath, target: "cursor" };
+    return { path: mcpPath, target: "cursor", runtime };
   }
   if (target === "claude-code" || target === "claude") {
+    const runtime = await installHostPlugin(options);
+    const command = renderHostMcpAddCommand("claude mcp add -s user", "across-context", runtime, options.env || process.env);
     return {
       target: "claude-code",
-      command: "claude mcp add -s user across-context -- across-context mcp"
+      command,
+      runtime
     };
   }
   if (target === "codex-mcp") {
+    const runtime = await installHostPlugin(options);
+    const command = renderHostMcpAddCommand("codex mcp add", "across-context", runtime, options.env || process.env);
     return {
       target: "codex-mcp",
-      command: "codex mcp add across-context -- across-context mcp"
+      command,
+      runtime
     };
   }
   if (target === "claude-desktop") {
+    const runtime = await installHostPlugin(options);
     const configFile = resolve(options.configFile || defaultClaudeDesktopConfigFile(options.env || process.env));
     const payload = await readJsonFile(configFile, {});
+    const server = options.command && options.args
+      ? { command: options.command, args: options.args }
+      : renderHostMcpServer(COMPONENT_ID, runtime, options.env || process.env);
     const next = {
       ...payload,
       mcpServers: {
         ...(payload.mcpServers || {}),
-        "across-context": {
-          command: options.command || "across-context",
-          args: options.args || ["mcp"]
-        }
+        "across-context": server
       }
     };
     await mkdir(dirname(configFile), { recursive: true });
     await writeFile(configFile, `${JSON.stringify(next, null, 2)}\n`, "utf8");
-    return { path: configFile, target: "claude-desktop" };
+    return { path: configFile, target: "claude-desktop", runtime };
   }
   throw new Error(`Unknown install target: ${target}`);
 }
@@ -189,6 +195,32 @@ function renderNodeWrapper(commandPath, targetPath) {
     `exec /usr/bin/env node "$SCRIPT_DIR"/${shellQuote(targetRelativePath)} "$@"`,
     ""
   ].join("\n");
+}
+
+function renderHostMcpAddCommand(prefix, componentId, runtime, env) {
+  const script = renderHostMcpScript(componentId, runtime, env);
+  return `${prefix} ${componentId} -- sh -lc ${shellQuote(script)}`;
+}
+
+function renderHostMcpServer(componentId, runtime, env) {
+  return {
+    command: "sh",
+    args: ["-lc", renderHostMcpScript(componentId, runtime, env)]
+  };
+}
+
+function renderHostMcpScript(componentId, runtime, env) {
+  const commandRef = runtimeCommandReference(componentId, runtime, env);
+  return commandRef.startsWith("$HOME/")
+    ? `exec "${commandRef}" mcp`
+    : `exec ${shellQuote(commandRef)} mcp`;
+}
+
+function runtimeCommandReference(componentId, runtime, env) {
+  const home = resolve(env.HOME || process.env.HOME || "");
+  const defaultCommand = join(home, ".across", "bin", componentId);
+  const commandPath = resolve(runtime.commandPath);
+  return commandPath === defaultCommand ? `$HOME/.across/bin/${componentId}` : commandPath;
 }
 
 async function readJsonFile(path, fallback) {

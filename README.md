@@ -26,6 +26,9 @@ Common workflows:
   MCP-capable hosts.
 - Preserve release, testing, and repository commands as approved local memory.
 - Let Autopilot recall prior loop evidence and write pending loop summaries.
+- Store Plugin Compatibility Lab v2 evidence memory and agent-team trust
+  receipts so future Codex, Claude Code, Claude Desktop, AAA, or MCP hosts can
+  review adoption decisions without re-running the whole lab.
 - Keep memory local under `~/.across/data/across-context` with policy checks
   before writes become active.
 
@@ -63,6 +66,16 @@ Use it when you want agents to remember:
 - Adds behavior rules so agents know when to read and write memory
 - Protects the vault with a memory policy engine
 - Provides a local dashboard, explainable hybrid search, pending approval, lifecycle controls, MCP resources and prompts, team export, and deterministic hooks
+
+### New in v0.8.6: Agent-Team Receipts And Evidence Memory
+
+- Adds host-neutral agent-team trust receipts so generic hosts can preserve
+  who did what, which evidence was reviewed, and which release or promotion
+  gate accepted the result without storing raw transcripts.
+- Adds evidence-memory recall and compaction helpers for workflow packs,
+  Orchestrator evidence graphs, and Autopilot release evidence.
+- Keeps the managed memory plugin relocatable under `~/.across` for Codex,
+  Claude Code, Claude Desktop, AAA, and other MCP-capable hosts.
 
 ### New in v0.8.5: Host Naming And Runtime Boundary Cleanup
 
@@ -244,7 +257,7 @@ operating instructions, and automatic memory needs guardrails.
 
 ### Install
 
-The current open-source distribution is GitHub-first. The `v0.8.5` tag and
+The current open-source distribution is GitHub-first. The `v0.8.6` tag and
 GitHub source archives are the canonical release artifacts; no extra npm
 tarball asset is attached to the GitHub Release, and npm registry publication is
 not required for hosts to install or run the plugin.
@@ -261,7 +274,7 @@ Or build and install a local npm tarball from the checked-out release tag:
 
 ```bash
 npm pack
-npm install -g ./across-context-0.8.5.tgz
+npm install -g ./across-context-0.8.6.tgz
 ```
 
 Verify:
@@ -319,6 +332,29 @@ Verify the result:
 across-context doctor
 across-context status
 ```
+
+For the Plugin Compatibility Lab v2 trust-layer workflow, Context stores the
+compact artifacts that should survive the run:
+
+```bash
+across-context remember-evidence \
+  --spec-id plugin-compatibility-lab-v2 \
+  --run-id '<run-id>' \
+  --graph-json '<evidence-graph-json>' \
+  --json
+
+across-context remember-agent-team-receipt \
+  --pack-id plugin-compatibility-lab-v2 \
+  --receipt-json '<trust-receipt-json>' \
+  --json
+
+across-context recall-agent-team-receipts \
+  --pack-id plugin-compatibility-lab-v2 \
+  --json
+```
+
+Both memories start as pending review. Context keeps the stored payload compact
+and parseable instead of preserving raw transcripts, long logs, or secrets.
 
 ### Agent Support
 
@@ -555,6 +591,15 @@ across-context setup --all --yes
 - 生成 `CLAUDE.md`
 - 生成 Cursor MCP 配置和规则
 - 注入自动读写记忆的行为规则
+
+### v0.8.6 新能力
+
+- 增加宿主中立的 agent-team trust receipt，记录任务分工、证据审核和
+  release/promotion gate 结果，同时避免长期保存原始 transcript。
+- 增加 evidence memory 的写入、召回和压缩能力，可承接 workflow pack、
+  Orchestrator evidence graph 和 Autopilot release evidence。
+- 继续保持插件安装在 `~/.across` 下，面向 Codex、Claude Code、
+  Claude Desktop、AAA 以及其他 MCP-capable host。
 
 ### v0.8.5 新能力
 

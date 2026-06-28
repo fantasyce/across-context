@@ -11,9 +11,10 @@ const cli = join(process.cwd(), "src", "cli.js");
 
 test("install command prepares agent-specific integration files or commands", async () => {
   const home = await mkdtemp(join(tmpdir(), "across-context-install-home-"));
+  const acrossHome = await mkdtemp(join(tmpdir(), "across-context-install-across-home-"));
   const project = await mkdtemp(join(tmpdir(), "across-context-install-project-"));
   await writeFile(join(project, "package.json"), JSON.stringify({ name: "install-demo" }));
-  const env = { ...process.env, ACROSS_CONTEXT_HOME: home };
+  const env = { ...process.env, ACROSS_CONTEXT_HOME: home, ACROSS_HOME: acrossHome };
 
   await exec("node", [cli, "remember", "Prefer small tests.", "--type", "preference"], { env });
   await exec("node", [cli, "install", "codex", "--project", project], { env });
@@ -22,18 +23,24 @@ test("install command prepares agent-specific integration files or commands", as
   const { stdout: codexMcpStdout } = await exec("node", [cli, "install", "codex-mcp", "--stdout"], { env });
   const claudeConfig = join(home, "claude_desktop_config.json");
   await writeFile(claudeConfig, JSON.stringify({ deploymentMode: "default" }));
-  await exec("node", [cli, "install", "claude-desktop", "--config-file", claudeConfig], { env });
+  const { stdout: desktopStdout } = await exec("node", [cli, "install", "claude-desktop", "--config-file", claudeConfig, "--json"], { env });
 
   assert.match(await readFile(join(project, "AGENTS.md"), "utf8"), /Prefer small tests/);
   assert.match(await readFile(join(project, ".cursor", "mcp.json"), "utf8"), /across-context/);
-  assert.match(stdout, /claude mcp add -s user across-context -- across-context mcp/);
-  assert.match(codexMcpStdout, /codex mcp add across-context -- across-context mcp/);
+  assert.match(stdout, /claude mcp add -s user across-context -- sh -lc /);
+  assert.match(stdout, new RegExp(join(acrossHome, "bin", "across-context").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.match(codexMcpStdout, /codex mcp add across-context -- sh -lc /);
+  assert.match(codexMcpStdout, new RegExp(join(acrossHome, "bin", "across-context").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   const claudePayload = JSON.parse(await readFile(claudeConfig, "utf8"));
+  const desktopInstall = JSON.parse(desktopStdout);
+  assert.equal(desktopInstall.target, "claude-desktop");
+  assert.equal(desktopInstall.runtime.commandPath, join(acrossHome, "bin", "across-context"));
   assert.equal(claudePayload.deploymentMode, "default");
   assert.deepEqual(claudePayload.mcpServers["across-context"], {
-    command: "across-context",
-    args: ["mcp"]
+    command: "sh",
+    args: ["-lc", `exec '${join(acrossHome, "bin", "across-context")}' mcp`]
   });
+  assert.equal((await stat(join(acrossHome, "bin", "across-context"))).isFile(), true);
 });
 
 test("install host-plugin copies the runtime into a hidden plugin directory", async () => {
@@ -41,15 +48,17 @@ test("install host-plugin copies the runtime into a hidden plugin directory", as
   const acrossHome = await mkdtemp(join(tmpdir(), "across-home-"));
   const env = { ...process.env, ACROSS_CONTEXT_HOME: home };
 
-  const { stdout } = await exec("node", [cli, "install", "host-plugin", "--across-home", acrossHome], { env });
+  const { stdout } = await exec("node", [cli, "install", "host-plugin", "--across-home", acrossHome, "--json"], { env });
 
   const installDir = join(acrossHome, "plugins", "across-context");
   const commandPath = join(acrossHome, "bin", "across-context");
+  const installed = JSON.parse(stdout);
   const wrapper = await readFile(commandPath, "utf8");
   const manifest = JSON.parse(await readFile(join(installDir, "manifest.json"), "utf8"));
   const mode = (await stat(commandPath)).mode & 0o777;
 
-  assert.match(stdout, /Installed host plugin/);
+  assert.equal(installed.target, "host-plugin");
+  assert.equal(installed.commandPath, commandPath);
   assert.match(await readFile(join(installDir, "src", "cli.js"), "utf8"), /across-context <command>/);
   assert.equal(manifest.id, "across-context");
   assert.equal(manifest.kind, "memory-provider");

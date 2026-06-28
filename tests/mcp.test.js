@@ -23,8 +23,12 @@ test("MCP server definition exposes memory tools backed by the vault", async () 
       "get_context_packs",
       "get_loop_history",
       "get_project_context",
+      "recall_agent_team_receipts",
+      "recall_evidence_memory",
       "recall_loop_memory",
+      "remember_agent_team_receipt",
       "remember_context",
+      "remember_evidence_memory",
       "remember_loop_memory",
       "review_pending_memories",
       "search_context"
@@ -55,6 +59,8 @@ test("MCP server definition exposes resources and prompts", async () => {
   assert.ok(definition.resources.some((resource) => resource.uri === "across-context://agent-loop-memory-policy"));
   assert.ok(definition.resources.some((resource) => resource.uri === "across-context://agent-loop-memory-metrics"));
   assert.ok(definition.resources.some((resource) => resource.uri === "across-context://context-packs"));
+  assert.ok(definition.resources.some((resource) => resource.uri === "across-context://evidence-memory-policy"));
+  assert.ok(definition.resources.some((resource) => resource.uri === "across-context://agent-team-receipts"));
   assert.ok(definition.prompts.some((prompt) => prompt.name === "task-start-context"));
   assert.ok(definition.prompts.some((prompt) => prompt.name === "agent-loop-memory-policy"));
 
@@ -87,6 +93,70 @@ test("MCP server definition exposes resources and prompts", async () => {
   const contextPacksResource = await definition.readResource("across-context://context-packs", {});
   const contextPacks = JSON.parse(contextPacksResource.contents[0].text);
   assert.equal(contextPacks.schema_version, "across-context-pack-summary/1.0");
+
+  const evidencePolicyResource = await definition.readResource("across-context://evidence-memory-policy", {});
+  const evidencePolicy = JSON.parse(evidencePolicyResource.contents[0].text);
+  assert.equal(evidencePolicy.schema_version, "across-evidence-memory-policy/1.0");
+  assert.equal(evidencePolicy.raw_payloads_persisted, false);
+
+  const receiptsResource = await definition.readResource("across-context://agent-team-receipts", {});
+  const receipts = JSON.parse(receiptsResource.contents[0].text);
+  assert.equal(receipts.schema_version, "across-context-agent-team-receipt-recall/1.0");
+});
+
+test("MCP stores and recalls compact evidence memory", async () => {
+  const home = await mkdtemp(join(tmpdir(), "across-context-mcp-evidence-memory-"));
+  const vault = new ContextVault({ home });
+  const definition = createContextMcpServerDefinition(vault);
+  const remember = definition.tools.find((tool) => tool.name === "remember_evidence_memory");
+  const recall = definition.tools.find((tool) => tool.name === "recall_evidence_memory");
+
+  const remembered = await remember.handler({
+    graph: {
+      schema_version: "across-evidence-graph/1.0",
+      run_id: "run-mcp",
+      spec_id: "plugin-compatibility-lab-v2",
+      nodes: [{ id: "run:run-mcp", type: "run", status: "completed", hash: "abc" }],
+      edges: []
+    },
+    summary: "MCP evidence graph"
+  });
+  const recalled = await recall.handler({ runId: "run-mcp" });
+
+  assert.equal(remembered.structuredContent.result.status, "accepted_pending");
+  assert.equal(recalled.structuredContent.result.result_count, 1);
+  assert.equal(recalled.structuredContent.result.results[0].summary, "MCP evidence graph");
+});
+
+test("MCP stores and recalls agent-team trust receipts", async () => {
+  const home = await mkdtemp(join(tmpdir(), "across-context-mcp-agent-team-receipt-"));
+  const vault = new ContextVault({ home });
+  const definition = createContextMcpServerDefinition(vault);
+  const remember = definition.tools.find((tool) => tool.name === "remember_agent_team_receipt");
+  const recall = definition.tools.find((tool) => tool.name === "recall_agent_team_receipts");
+
+  const remembered = await remember.handler({
+    packId: "plugin-compatibility-lab-v2",
+    receipt: {
+      schema_version: "across-agent-team-trust-receipt/1.0",
+      receipt_id: "receipt-template:plugin-compatibility-lab-v2",
+      pack_id: "plugin-compatibility-lab-v2",
+      acceptance_checklist: [{ id: "workflow_pack_valid", status: "passed", required: true }],
+      evidence_contract: {
+        required: ["runtime_policy", "trust_boundary", "host_exports", "evidence_graph", "validation_gates"]
+      }
+    },
+    product_card: {
+      pack_id: "plugin-compatibility-lab-v2",
+      headline: "Test an agent plugin before adoption.",
+      competitive_position: "trust layer"
+    }
+  });
+  const recalled = await recall.handler({ packId: "plugin-compatibility-lab-v2" });
+
+  assert.equal(remembered.structuredContent.result.status, "accepted_pending");
+  assert.equal(recalled.structuredContent.result.result_count, 1);
+  assert.equal(recalled.structuredContent.result.results[0].headline, "Test an agent plugin before adoption.");
 });
 
 test("MCP exposes Agent Loop memory metrics without raw memory text", async () => {

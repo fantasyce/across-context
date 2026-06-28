@@ -11,6 +11,8 @@ import { runHook } from "./hooks.js";
 import { startDashboard } from "./dashboard.js";
 import { renderHealth, renderPluginManifest, renderPluginStatus } from "./plugin-manifest.js";
 import { contextPackSummary, loopHistory, loopMemoryDiff, recallLoopMemory, rememberLoopMemory } from "./autopilot-loop-memory.js";
+import { recallEvidenceMemory, rememberEvidenceMemory } from "./evidence-memory.js";
+import { recallAgentTeamReceipts, rememberAgentTeamReceipt } from "./agent-team-receipts.js";
 
 const vault = new ContextVault();
 
@@ -235,6 +237,54 @@ async function main(argv) {
     return;
   }
 
+  if (command === "remember-evidence") {
+    const parsed = parseArgs(rest);
+    const graph = parsed["graph-json"] ? JSON.parse(parsed["graph-json"]) : {};
+    const result = await rememberEvidenceMemory(vault, {
+      graph,
+      specId: parsed["spec-id"],
+      runId: parsed["run-id"],
+      summary: parsed.summary || parsed.text || parsed.positionals.join(" ")
+    });
+    console.log(parsed.json ? JSON.stringify(result, null, 2) : `${result.status}: ${result.memory?.id || result.reason}`);
+    return;
+  }
+
+  if (command === "recall-evidence") {
+    const parsed = parseArgs(rest);
+    const result = await recallEvidenceMemory(vault, {
+      specId: parsed["spec-id"],
+      runId: parsed["run-id"],
+      limit: parsed.limit,
+      status: parsed.status
+    });
+    console.log(parsed.json ? JSON.stringify(result, null, 2) : formatRecallEvidence(result));
+    return;
+  }
+
+  if (command === "remember-agent-team-receipt") {
+    const parsed = parseArgs(rest);
+    const result = await rememberAgentTeamReceipt(vault, {
+      packId: parsed["pack-id"],
+      receipt: parsed["receipt-json"] ? JSON.parse(parsed["receipt-json"]) : {},
+      product_card: parsed["product-card-json"] ? JSON.parse(parsed["product-card-json"]) : {},
+      protocol_readiness: parsed["protocol-readiness-json"] ? JSON.parse(parsed["protocol-readiness-json"]) : {}
+    });
+    console.log(parsed.json ? JSON.stringify(result, null, 2) : `${result.status}: ${result.memory?.id || result.pack_id}`);
+    return;
+  }
+
+  if (command === "recall-agent-team-receipts") {
+    const parsed = parseArgs(rest);
+    const result = await recallAgentTeamReceipts(vault, {
+      packId: parsed["pack-id"],
+      limit: parsed.limit,
+      status: parsed.status
+    });
+    console.log(parsed.json ? JSON.stringify(result, null, 2) : result.results.map((item) => `${item.pack_id}: ${item.headline}`).join("\n"));
+    return;
+  }
+
   if (command === "loop-history") {
     const parsed = parseArgs(rest);
     const result = await loopHistory(vault, { specId: parsed["spec-id"], limit: parsed.limit });
@@ -348,6 +398,10 @@ async function main(argv) {
         pluginRoot: parsed["plugin-root"],
         binDir: parsed["bin-dir"]
       });
+      if (parsed.json) {
+        console.log(JSON.stringify(result, null, 2));
+        return;
+      }
       console.log(`Installed host plugin command at ${result.commandPath}`);
       console.log(`runtime: ${result.installDir}`);
       return;
@@ -358,9 +412,15 @@ async function main(argv) {
     }
     const result = await installAgent(vault, target, {
       projectRoot,
-      configFile: parsed["config-file"]
+      configFile: parsed["config-file"],
+      acrossHome: parsed["across-home"],
+      pluginRoot: parsed["plugin-root"],
+      binDir: parsed["bin-dir"],
+      env: process.env
     });
-    if (parsed.stdout || result.command) {
+    if (parsed.json) {
+      console.log(JSON.stringify(result, null, 2));
+    } else if (parsed.stdout || result.command) {
       console.log(result.command || JSON.stringify(result, null, 2));
     } else {
       console.log(`Installed ${result.target} integration at ${result.path}`);
@@ -501,6 +561,14 @@ Commands:
   recall-loop --spec-id id --limit 10 [--json]
                                         Recall prior loop memory for a spec
   recall-loop --run-id id [--json]      Recall loop memory for a run
+  remember-evidence --graph-json '{}' --spec-id id --run-id id [--summary text] [--json]
+                                        Store compact evidence graph memory as pending review
+  recall-evidence --spec-id id|--run-id id [--json]
+                                        Recall compact evidence graph memory
+  remember-agent-team-receipt --pack-id id --receipt-json '{}' [--product-card-json '{}'] [--protocol-readiness-json '{}'] [--json]
+                                        Store an agent-team trust receipt as pending memory
+  recall-agent-team-receipts [--pack-id id] [--json]
+                                        Recall agent-team trust receipts
   loop-history [--spec-id id] [--json]  Summarize loop memory by spec
   loop-memory-diff --run-id a --run-id b [--json]
                                         Compare loop memory between two runs
@@ -570,6 +638,13 @@ function mergeTags(base, extra) {
 function formatRecallLoop(result) {
   if (!result.results.length) return "No loop memory found.";
   return result.results.map((item) => `${item.memory_id} [${item.spec_id}/${item.run_id}] ${item.text}`).join("\n");
+}
+
+function formatRecallEvidence(result) {
+  if (!result.results.length) return "No evidence memory found.";
+  return result.results
+    .map((item) => `${item.memory_id} [${item.status}] ${item.spec_id}/${item.run_id}: ${item.summary}`)
+    .join("\n");
 }
 
 function formatSetupResult(result) {

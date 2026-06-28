@@ -145,3 +145,79 @@ test("CLI exposes Agent Loop memory metrics without raw candidate text", async (
   assert.equal(metrics.totals.pending_count, 1);
   assert.doesNotMatch(JSON.stringify(metrics), /Do not expose this candidate goal/);
 });
+
+test("CLI stores and recalls compact evidence graph memory", async () => {
+  const home = await mkdtemp(join(tmpdir(), "across-context-cli-evidence-home-"));
+  const env = { ...process.env, ACROSS_CONTEXT_HOME: home };
+  const graph = {
+    schema_version: "across-evidence-graph/1.0",
+    run_id: "run-cli",
+    spec_id: "plugin-compatibility-lab-v2",
+    status: "completed",
+    nodes: [{ id: "action:workflow_pack_export", type: "action", status: "passed", hash: "abc" }],
+    edges: []
+  };
+
+  const remembered = JSON.parse((await exec("node", [
+    cli,
+    "remember-evidence",
+    "--graph-json",
+    JSON.stringify(graph),
+    "--summary",
+    "CLI evidence graph",
+    "--json"
+  ], { env })).stdout);
+  const recalled = JSON.parse((await exec("node", [
+    cli,
+    "recall-evidence",
+    "--run-id",
+    "run-cli",
+    "--json"
+  ], { env })).stdout);
+
+  assert.equal(remembered.status, "accepted_pending");
+  assert.equal(recalled.result_count, 1);
+  assert.equal(recalled.results[0].summary, "CLI evidence graph");
+});
+
+test("CLI stores and recalls agent-team trust receipts", async () => {
+  const home = await mkdtemp(join(tmpdir(), "across-context-cli-receipt-"));
+  const env = { ...process.env, ACROSS_CONTEXT_HOME: home, ACROSS_HOME: home };
+  const receipt = {
+    schema_version: "across-agent-team-trust-receipt/1.0",
+    receipt_id: "receipt-template:plugin-compatibility-lab-v2",
+    pack_id: "plugin-compatibility-lab-v2",
+    status: "passed",
+    evidence_contract: {
+      required: ["runtime_policy", "trust_boundary", "host_exports", "evidence_graph", "validation_gates"]
+    }
+  };
+  const productCard = {
+    pack_id: "plugin-compatibility-lab-v2",
+    headline: "Test an agent plugin before adoption.",
+    competitive_position: "trust layer for agent teams"
+  };
+
+  const remembered = JSON.parse((await exec("node", [
+    cli,
+    "remember-agent-team-receipt",
+    "--pack-id",
+    "plugin-compatibility-lab-v2",
+    "--receipt-json",
+    JSON.stringify(receipt),
+    "--product-card-json",
+    JSON.stringify(productCard),
+    "--json"
+  ], { env })).stdout);
+  const recalled = JSON.parse((await exec("node", [
+    cli,
+    "recall-agent-team-receipts",
+    "--pack-id",
+    "plugin-compatibility-lab-v2",
+    "--json"
+  ], { env })).stdout);
+
+  assert.equal(remembered.schema_version, "across-agent-team-receipt-memory/1.0");
+  assert.equal(recalled.result_count, 1);
+  assert.equal(recalled.results[0].headline, "Test an agent plugin before adoption.");
+});
