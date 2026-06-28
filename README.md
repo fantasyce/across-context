@@ -67,6 +67,12 @@ Use it when you want agents to remember:
 - Protects the vault with a memory policy engine
 - Provides a local dashboard, explainable hybrid search, pending approval, lifecycle controls, MCP resources and prompts, team export, and deterministic hooks
 
+### New in v0.8.7: Source-Sync Release
+
+- Records the current `main` commit as the latest source-first release after
+  release documentation synchronization.
+- Keeps the v0.8.6 memory, evidence, and host-plugin behavior unchanged.
+
 ### New in v0.8.6: Agent-Team Receipts And Evidence Memory
 
 - Adds host-neutral agent-team trust receipts so generic hosts can preserve
@@ -257,7 +263,7 @@ operating instructions, and automatic memory needs guardrails.
 
 ### Install
 
-The current open-source distribution is GitHub-first. The `v0.8.6` tag and
+The current open-source distribution is GitHub-first. The `v0.8.7` tag and
 GitHub source archives are the canonical release artifacts; no extra npm
 tarball asset is attached to the GitHub Release, and npm registry publication is
 not required for hosts to install or run the plugin.
@@ -274,7 +280,7 @@ Or build and install a local npm tarball from the checked-out release tag:
 
 ```bash
 npm pack
-npm install -g ./across-context-0.8.6.tgz
+npm install -g ./across-context-0.8.7.tgz
 ```
 
 Verify:
@@ -591,6 +597,12 @@ across-context setup --all --yes
 - 生成 `CLAUDE.md`
 - 生成 Cursor MCP 配置和规则
 - 注入自动读写记忆的行为规则
+
+### v0.8.7 新能力
+
+- 将当前 `main` commit 记录为最新 source-first release tag，用于完成发布
+  文档同步后的版本对齐。
+- 保持 v0.8.6 的记忆、证据和 host-plugin 行为不变。
 
 ### v0.8.6 新能力
 

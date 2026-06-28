@@ -10,7 +10,7 @@ import { recallAgentTeamReceipts, rememberAgentTeamReceipt } from "./agent-team-
 export function createContextMcpServerDefinition(vault) {
   return {
     name: "across-context",
-    version: "0.8.6",
+    version: "0.8.7",
     resources: [
       {
         uri: "across-context://agent-card",
