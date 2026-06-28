@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
+CHECK_HOME="$(mktemp -d "${TMPDIR:-/tmp}/across-context-check.XXXXXX")"
+trap 'rm -rf "$CHECK_HOME"' EXIT
 
 echo "== whitespace =="
 git diff --check
@@ -8,8 +10,8 @@ echo "== tests =="
 npm test
 
 echo "== cli smoke =="
-node src/cli.js --help >/dev/null
-node src/mcp-server.js --help >/dev/null
+ACROSS_HOME="$CHECK_HOME/across-home" node src/cli.js --help >/dev/null
+ACROSS_HOME="$CHECK_HOME/across-home" node src/mcp-server.js --help >/dev/null
 
 echo "== sensitive text scan =="
 PATH_PATTERN='/U''sers/[^[:space:])]+'

@@ -4,11 +4,13 @@ import { learnProject } from "./project.js";
 import { renderAgentCard } from "./agent-card.js";
 import { renderAgentLoopMemoryPolicy, renderAgentLoopMemoryPromptText } from "./loop-memory-policy.js";
 import { contextPackSummary, loopHistory, loopMemoryDiff, recallLoopMemory, rememberLoopMemory } from "./autopilot-loop-memory.js";
+import { recallEvidenceMemory, rememberEvidenceMemory } from "./evidence-memory.js";
+import { recallAgentTeamReceipts, rememberAgentTeamReceipt } from "./agent-team-receipts.js";
 
 export function createContextMcpServerDefinition(vault) {
   return {
     name: "across-context",
-    version: "0.8.5",
+    version: "0.8.6",
     resources: [
       {
         uri: "across-context://agent-card",
@@ -50,6 +52,18 @@ export function createContextMcpServerDefinition(vault) {
         uri: "across-context://context-packs",
         name: "Context Packs",
         description: "Grouped Memory OS style context packs, including optional generic agent plugin tags.",
+        mimeType: "application/json"
+      },
+      {
+        uri: "across-context://evidence-memory-policy",
+        name: "Evidence Memory Policy",
+        description: "Compact evidence graph memory policy for cross-agent E2E traces.",
+        mimeType: "application/json"
+      },
+      {
+        uri: "across-context://agent-team-receipts",
+        name: "Agent Team Trust Receipts",
+        description: "Pending trust receipts for workflow adoption and promotion reviews.",
         mimeType: "application/json"
       }
     ],
@@ -306,6 +320,77 @@ export function createContextMcpServerDefinition(vault) {
         }
       },
       {
+        name: "remember_evidence_memory",
+        description: "Store a compact across-evidence-graph/1.0 memory candidate as pending review.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            graph: { type: "object" },
+            evidence_graph: { type: "object" },
+            specId: { type: "string" },
+            runId: { type: "string" },
+            summary: { type: "string" }
+          }
+        },
+        handler: async (args) => {
+          const result = await rememberEvidenceMemory(vault, args);
+          return textResult(JSON.stringify(result, null, 2), { result });
+        }
+      },
+      {
+        name: "recall_evidence_memory",
+        description: "Recall compact evidence graph memories by spec id or run id.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            specId: { type: "string" },
+            runId: { type: "string" },
+            limit: { type: "number", default: 10 },
+            status: { type: "string" }
+          }
+        },
+        handler: async (args) => {
+          const result = await recallEvidenceMemory(vault, args);
+          return textResult(JSON.stringify(result, null, 2), { result });
+        }
+      },
+      {
+        name: "remember_agent_team_receipt",
+        description: "Store an agent-team trust receipt as pending memory for later adoption or promotion review.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            packId: { type: "string" },
+            pack_id: { type: "string" },
+            receipt: { type: "object" },
+            trust_receipt: { type: "object" },
+            product_card: { type: "object" },
+            protocol_readiness: { type: "object" }
+          }
+        },
+        handler: async (args) => {
+          const result = await rememberAgentTeamReceipt(vault, args);
+          return textResult(JSON.stringify(result, null, 2), { result });
+        }
+      },
+      {
+        name: "recall_agent_team_receipts",
+        description: "Recall pending or active agent-team trust receipts by workflow pack id.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            packId: { type: "string" },
+            pack_id: { type: "string" },
+            limit: { type: "number", default: 10 },
+            status: { type: "string" }
+          }
+        },
+        handler: async (args) => {
+          const result = await recallAgentTeamReceipts(vault, args);
+          return textResult(JSON.stringify(result, null, 2), { result });
+        }
+      },
+      {
         name: "get_loop_history",
         description: "Summarize loop memory history by spec.",
         inputSchema: {
@@ -401,6 +486,25 @@ async function readResource(vault, uri, args = {}) {
       agentPluginId: args.agentPluginId || args.agent_plugin_id
     });
     return resourceResult(uri, "application/json", JSON.stringify(summary, null, 2));
+  }
+  if (uri === "across-context://evidence-memory-policy") {
+    return resourceResult(uri, "application/json", JSON.stringify({
+      schema_version: "across-evidence-memory-policy/1.0",
+      provider: "across-context",
+      write_status: "pending",
+      graph_schema: "across-evidence-graph/1.0",
+      stored_fields: ["id", "type", "status", "hash", "from", "to", "relation", "summary"],
+      raw_payloads_persisted: false,
+      rejects_secrets: true
+    }, null, 2));
+  }
+  if (uri === "across-context://agent-team-receipts") {
+    const result = await recallAgentTeamReceipts(vault, {
+      packId: args.packId || args.pack_id,
+      limit: args.limit,
+      status: args.status
+    });
+    return resourceResult(uri, "application/json", JSON.stringify(result, null, 2));
   }
   throw new Error(`Unknown resource: ${uri}`);
 }

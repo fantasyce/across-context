@@ -4,7 +4,7 @@ export async function renderAgentCard(vault) {
   const loopMemoryPolicy = renderAgentLoopMemoryPolicy();
   return {
     name: "Across Context",
-    version: "0.8.5",
+    version: "0.8.6",
     description: "Local-first shared memory provider for coding agents.",
     url: "https://github.com/fantasyce/across-context",
     capabilities: {
@@ -13,6 +13,8 @@ export async function renderAgentCard(vault) {
       pendingApproval: true,
       agentLoopMemoryHooks: true,
       agentLoopMemoryHooksV2: true,
+      evidenceGraphMemory: true,
+      agentTeamTrustReceipts: true,
       allProjectPendingReview: true,
       teamExport: true,
       localFirst: true
@@ -58,6 +60,8 @@ export async function renderAgentCard(vault) {
       scopes: ["global", "project"],
       retrievalModes: ["keyword", "semantic", "hybrid"],
       loopHooks: loopMemoryPolicy.hooks.map((hook) => hook.id),
+      evidenceGraphSchema: "across-evidence-graph/1.0",
+      agentTeamReceiptSchema: "across-agent-team-receipt-memory/1.0",
       reviewModes: ["global", "project", "all-projects"],
       explanations: true
     },
@@ -75,6 +79,16 @@ export async function renderAgentCard(vault) {
         id: "agent-loop-memory-hooks",
         name: "Agent Loop Memory Hooks",
         description: "Provide pre-loop search, step context attachment, and post-loop pending summary policy."
+      },
+      {
+        id: "evidence-graph-memory",
+        name: "Evidence Graph Memory",
+        description: "Store compact cross-agent evidence graphs as pending memory without raw tool payloads."
+      },
+      {
+        id: "agent-team-trust-receipts",
+        name: "Agent Team Trust Receipts",
+        description: "Store workflow adoption and promotion receipts as pending team-visible memory."
       },
       {
         id: "memory-review",

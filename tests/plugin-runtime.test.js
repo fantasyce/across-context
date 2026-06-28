@@ -19,10 +19,14 @@ test("plugin-manifest exposes the Across host runtime contract", async () => {
   assert.equal(manifest.id, "across-context");
   assert.equal(manifest.kind, "memory-provider");
   assert.equal(manifest.capabilities.agentLoopMemoryHooksV2, true);
+  assert.equal(manifest.capabilities.evidenceGraphMemory, true);
+  assert.equal(manifest.capabilities.agentTeamTrustReceipts, true);
   assert.equal(manifest.capabilities.pendingLoopSummaries, true);
   assert.equal(manifest.capabilities.allProjectPendingReview, true);
   assert.equal(manifest.entrypoints.mcp.transport, "stdio");
   assert.equal(manifest.entrypoints.mcp.args[0], "mcp");
+  assert.equal(manifest.protocols.mcp.tools.rememberEvidenceMemory, "remember_evidence_memory");
+  assert.equal(manifest.protocols.mcp.tools.rememberAgentTeamReceipt, "remember_agent_team_receipt");
   assert.equal(manifest.entrypoints.status.args[0], "plugin-status");
   assert.equal(manifest.lifecycle.uninstall.args[0], "uninstall");
   assert.equal(manifest.lifecycle.uninstall.preservesData, true);

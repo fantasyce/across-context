@@ -14,6 +14,8 @@ test("renderAgentCard describes Across Context as a local memory provider", asyn
   assert.equal(card.name, "Across Context");
   assert.equal(card.capabilities.memory, true);
   assert.equal(card.capabilities.agentLoopMemoryHooks, true);
+  assert.equal(card.capabilities.evidenceGraphMemory, true);
+  assert.equal(card.capabilities.agentTeamTrustReceipts, true);
   assert.equal(card.capabilities.allProjectPendingReview, true);
   assert.equal(card.endpoints.mcp.command, "across-context");
   assert.equal(card.protocols.mcp.transport, "stdio");
@@ -27,11 +29,15 @@ test("renderAgentCard describes Across Context as a local memory provider", asyn
   assert.deepEqual(card.memory.types, ["preference", "decision", "note", "command", "session"]);
   assert.deepEqual(card.memory.loopHooks, ["pre_loop_search", "step_context_attach", "post_loop_pending_summary"]);
   assert.deepEqual(card.memory.reviewModes, ["global", "project", "all-projects"]);
+  assert.equal(card.memory.evidenceGraphSchema, "across-evidence-graph/1.0");
+  assert.equal(card.memory.agentTeamReceiptSchema, "across-agent-team-receipt-memory/1.0");
   assert.equal(card.vault.storage, "local-jsonl");
   assert.equal(card.vault.home, undefined);
   assert.doesNotMatch(JSON.stringify(card), new RegExp(escapeRegExp(home)));
   assert.ok(card.skills.some((skill) => skill.id === "shared-memory"));
   assert.ok(card.skills.some((skill) => skill.id === "agent-loop-memory-hooks"));
+  assert.ok(card.skills.some((skill) => skill.id === "evidence-graph-memory"));
+  assert.ok(card.skills.some((skill) => skill.id === "agent-team-trust-receipts"));
 });
 
 function escapeRegExp(value) {
