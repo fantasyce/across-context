@@ -7,6 +7,12 @@
   "summary": "Across Context gives coding agents one local memory surface with search, write policy, pending review, context packs, MCP tools, and loop memory summaries.",
   "part_of": "Across",
   "repository": "fantasyce/across-context",
+  "current_release": {
+    "version": "v0.8.6",
+    "published_at": "2026-06-28",
+    "tag": "v0.8.6",
+    "release_url": "https://github.com/fantasyce/across-context/releases/tag/v0.8.6"
+  },
   "role": "local memory provider",
   "hosts": [
     "Codex",
