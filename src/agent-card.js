@@ -1,10 +1,12 @@
 import { renderAgentLoopMemoryPolicy } from "./loop-memory-policy.js";
+import { resolveMemoryBackend } from "./memory-backend.js";
 
 export async function renderAgentCard(vault) {
   const loopMemoryPolicy = renderAgentLoopMemoryPolicy();
+  const memoryBackend = resolveMemoryBackend({ env: vault?.env || process.env });
   return {
     name: "Across Context",
-    version: "0.8.7",
+    version: "0.8.8",
     description: "Local-first shared memory provider for coding agents.",
     url: "https://github.com/fantasyce/across-context",
     capabilities: {
@@ -15,6 +17,10 @@ export async function renderAgentCard(vault) {
       agentLoopMemoryHooksV2: true,
       evidenceGraphMemory: true,
       agentTeamTrustReceipts: true,
+      agentTeamTrustReceiptsA2AV2: true,
+      skillsBridge: true,
+      codexSkillsAutoDiscovery: true,
+      memoryBackendSwitch: true,
       allProjectPendingReview: true,
       teamExport: true,
       localFirst: true
@@ -42,7 +48,9 @@ export async function renderAgentCard(vault) {
       a2a: {
         discoveryReady: true,
         role: "memory-context-provider",
-        complementsMcp: true
+        complementsMcp: true,
+        trustReceiptSchema: "across-agent-team-trust-receipt/1.0",
+        delegationSchema: "across-a2a-task-delegation/2.0"
       }
     },
     governance: {
@@ -62,12 +70,22 @@ export async function renderAgentCard(vault) {
       loopHooks: loopMemoryPolicy.hooks.map((hook) => hook.id),
       evidenceGraphSchema: "across-evidence-graph/1.0",
       agentTeamReceiptSchema: "across-agent-team-receipt-memory/1.0",
+      supportedBackends: ["vault", "mem0", "graphrag"],
+      activeBackend: memoryBackend.backend,
       reviewModes: ["global", "project", "all-projects"],
       explanations: true
     },
     vault: {
       storage: "local-jsonl",
-      scope: "user-controlled"
+      scope: "user-controlled",
+      backend: memoryBackend
+    },
+    skill_bridge: {
+      export_schema: "agentskills.io-export/1.0",
+      import_schema: "across-context-skill-memory-import/1.0",
+      default_discovery_roots: ["~/.codex/skills", "~/.claude/skills", "~/.qwen/skills"],
+      raw_skill_bodies_included: false,
+      secrets_included: false
     },
     skills: [
       {
@@ -99,6 +117,11 @@ export async function renderAgentCard(vault) {
         id: "team-context",
         name: "Team Context",
         description: "Export team-safe project memories without private local paths."
+      },
+      {
+        id: "skills-bridge",
+        name: "Skills Bridge",
+        description: "Export Across Context skills and import local agent skill directories as pending redacted summaries."
       }
     ]
   };

@@ -17,7 +17,11 @@ function receiptFixture() {
       { id: "workflow_pack_valid", status: "passed", required: true }
     ],
     evidence_contract: {
-      required: ["runtime_policy", "trust_boundary", "host_exports", "evidence_graph", "validation_gates"]
+      required: ["runtime_policy", "trust_boundary", "host_exports", "evidence_graph", "validation_gates"],
+      a2a_delegation_schema: "across-a2a-task-delegation/2.0",
+      a2a_compatible_schemas: ["across-a2a-task-delegation/1.0"],
+      projection_contract: "across-external-projection/1.0",
+      required_projections: ["mcp_tasks", "a2a", "ag_ui", "remote_mcp_oauth", "otel"]
     }
   };
 }
@@ -46,4 +50,63 @@ test("agent-team trust receipts are stored as pending team-visible memory", asyn
   assert.equal(recalled.result_count, 1);
   assert.equal(recalled.results[0].headline, "Test an agent plugin before adoption.");
   assert.equal(recalled.results[0].protocol_summary.score, 75);
+  assert.equal(recalled.results[0].a2a.schema_version, "across-a2a-task-delegation/2.0");
+  assert.equal(recalled.results[0].a2a.profile, "linux-foundation-a2a");
+  assert.equal(recalled.results[0].a2a.projection_only, true);
+});
+
+test("agent-team trust receipts stay parseable when Lab v2 metadata is rich", async () => {
+  const home = await mkdtemp(join(tmpdir(), "across-context-agent-team-rich-receipt-"));
+  const vault = new ContextVault({ home });
+  const receipt = {
+    ...receiptFixture(),
+    acceptance_checklist: [
+      { id: "workflow_pack_valid", status: "passed", required: true },
+      { id: "human_promotion_gate", status: "passed", required: true },
+      { id: "no_secret_boundary", status: "passed", required: true },
+      { id: "host_neutral_exports", status: "passed", required: true },
+      { id: "evidence_graph_expected", status: "passed", required: true },
+      { id: "pending_memory_only", status: "passed", required: true }
+    ],
+    evidence_contract: {
+      required: [
+        "runtime_policy",
+        "trust_boundary",
+        "host_exports",
+        "evidence_graph",
+        "validation_gates",
+        "otel_genai_spans"
+      ],
+      graph_schema: "across-evidence-graph/1.0",
+      memory_policy: "pending_review",
+      a2a_delegation_schema: "across-a2a-task-delegation/2.0",
+      a2a_compatible_schemas: ["across-a2a-task-delegation/1.0"],
+      projection_contract: "across-external-projection/1.0",
+      required_projections: ["mcp_tasks", "a2a", "ag_ui", "remote_mcp_oauth", "otel"]
+    },
+    protocol_summary: {
+      score: 88,
+      passed_count: 8,
+      partial_count: 1,
+      planned_count: 0,
+      honest_protocol_claims: true,
+      frontier_ready: true
+    }
+  };
+  const remembered = await rememberAgentTeamReceipt(vault, {
+    receipt,
+    product_card: {
+      pack_id: "plugin-compatibility-lab-v2",
+      headline: "Test an agent plugin before it becomes part of your team workflow.",
+      primary_user: "developers adopting external MCP servers, agent plugins, or coding-agent tools",
+      competitive_position: "Across gives Multica-style agent teams a plugin acceptance gate with portable evidence."
+    },
+    protocol_readiness: { summary: receipt.protocol_summary }
+  });
+  const recalled = await recallAgentTeamReceipts(vault, { packId: "plugin-compatibility-lab-v2" });
+
+  assert.equal(remembered.memory.policy.trimmed, false);
+  assert.equal(recalled.result_count, 1);
+  assert.equal(recalled.results[0].a2a.schema_version, "across-a2a-task-delegation/2.0");
+  assert.equal(recalled.results[0].protocol_summary.frontier_ready, true);
 });

@@ -42,6 +42,10 @@ export async function renderPluginManifest(options = {}) {
       agentLoopMemoryHooksV2: true,
       evidenceGraphMemory: true,
       agentTeamTrustReceipts: true,
+      agentTeamTrustReceiptsA2AV2: true,
+      skillsBridge: true,
+      codexSkillsAutoDiscovery: true,
+      memoryBackendSwitch: true,
       pendingLoopSummaries: true,
       contextPacks: true,
       agentPluginContextPacks: true,
@@ -120,6 +124,18 @@ export async function renderPluginManifest(options = {}) {
       contextPacks: {
         command: manifestCommandPath,
         args: ["context-packs", "--all-projects", "--json"]
+      },
+      skillExport: {
+        command: manifestCommandPath,
+        args: ["skill-export", "--json"]
+      },
+      skillsImport: {
+        command: manifestCommandPath,
+        args: ["skills-import", "--json"]
+      },
+      memoryBackend: {
+        command: manifestCommandPath,
+        args: ["memory-backend", "--json"]
       }
     },
     protocols: {
@@ -132,7 +148,10 @@ export async function renderPluginManifest(options = {}) {
           rememberEvidenceMemory: "remember_evidence_memory",
           recallEvidenceMemory: "recall_evidence_memory",
           rememberAgentTeamReceipt: "remember_agent_team_receipt",
-          recallAgentTeamReceipts: "recall_agent_team_receipts"
+          recallAgentTeamReceipts: "recall_agent_team_receipts",
+          exportSkills: "export_skills",
+          importSkillMemory: "import_skill_memory",
+          getMemoryBackend: "get_memory_backend"
         },
         resources: true,
         prompts: {
@@ -147,7 +166,8 @@ export async function renderPluginManifest(options = {}) {
       },
       a2a: {
         role: "memory-context-provider",
-        discoveryReady: true
+        discoveryReady: true,
+        taskDelegationSchema: "across-a2a-task-delegation/2.0"
       }
     },
     paths: {

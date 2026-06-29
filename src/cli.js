@@ -13,6 +13,8 @@ import { renderHealth, renderPluginManifest, renderPluginStatus } from "./plugin
 import { contextPackSummary, loopHistory, loopMemoryDiff, recallLoopMemory, rememberLoopMemory } from "./autopilot-loop-memory.js";
 import { recallEvidenceMemory, rememberEvidenceMemory } from "./evidence-memory.js";
 import { recallAgentTeamReceipts, rememberAgentTeamReceipt } from "./agent-team-receipts.js";
+import { resolveMemoryBackend } from "./memory-backend.js";
+import { importSkillDirectories, renderSkillExport } from "./skill-export.js";
 
 const vault = new ContextVault();
 
@@ -179,6 +181,27 @@ async function main(argv) {
     const parsed = parseArgs(rest);
     const card = await renderAgentCard(vault);
     console.log(parsed.json ? JSON.stringify(card, null, 2) : formatAgentCard(card));
+    return;
+  }
+
+  if (command === "skill-export") {
+    const parsed = parseArgs(rest);
+    const result = await renderSkillExport(vault, { outputDir: parsed.output || parsed["output-dir"] });
+    console.log(parsed.json ? JSON.stringify(result, null, 2) : `exported skills: ${result.skills.length}`);
+    return;
+  }
+
+  if (command === "skills-import") {
+    const parsed = parseArgs(rest);
+    const result = await importSkillDirectories(vault, { roots: parsed.root });
+    console.log(parsed.json ? JSON.stringify(result, null, 2) : `pending skill memories: ${result.summary.memory_count}`);
+    return;
+  }
+
+  if (command === "memory-backend") {
+    const parsed = parseArgs(rest);
+    const result = resolveMemoryBackend({ backend: parsed.backend, env: process.env });
+    console.log(parsed.json ? JSON.stringify(result, null, 2) : `${result.backend}: ${result.status}`);
     return;
   }
 
@@ -551,6 +574,10 @@ Commands:
   stats [--project path]                Show memory counts
   compact [--project path]              Remove duplicate records from the vault
   agent-card [--json]                   Print the Across Context agent card
+  skill-export [--output dir] [--json]  Export Across Context skills as agentskills.io directories
+  skills-import [--root path] [--json]  Import Codex/Claude/Qwen skill directories as redacted pending memory
+  memory-backend [--backend vault|mem0|graphrag] [--json]
+                                        Show the active memory backend contract
   loop-memory-policy [--json]           Print agent-loop memory hook policy
   loop-memory-metrics [--project path|--all-projects] [--json]
                                         Print aggregate agent-loop memory candidate metrics
