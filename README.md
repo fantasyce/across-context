@@ -67,6 +67,16 @@ Use it when you want agents to remember:
 - Protects the vault with a memory policy engine
 - Provides a local dashboard, explainable hybrid search, pending approval, lifecycle controls, MCP resources and prompts, team export, and deterministic hooks
 
+### New in v0.8.8: Skills Bridge And Memory Backend Projections
+
+- Exports Across Context agent cards and native skills as agentskills.io
+  directories, and imports Codex, Claude Code, and Qwen Code skill directories
+  as redacted pending memory summaries.
+- Adds optional `vault`, `mem0`, and `graphrag` memory backend contracts without
+  introducing a required network dependency.
+- Keeps agent-team trust receipt memory parseable under the existing memory
+  policy by compacting rich Lab v2 metadata before pending storage.
+
 ### New in v0.8.7: Source-Sync Release
 
 - Records the current `main` commit as the latest source-first release after
@@ -263,7 +273,7 @@ operating instructions, and automatic memory needs guardrails.
 
 ### Install
 
-The current open-source distribution is GitHub-first. The `v0.8.7` tag and
+The current open-source distribution is GitHub-first. The `v0.8.8` tag and
 GitHub source archives are the canonical release artifacts; no extra npm
 tarball asset is attached to the GitHub Release, and npm registry publication is
 not required for hosts to install or run the plugin.
@@ -280,7 +290,7 @@ Or build and install a local npm tarball from the checked-out release tag:
 
 ```bash
 npm pack
-npm install -g ./across-context-0.8.7.tgz
+npm install -g ./across-context-0.8.8.tgz
 ```
 
 Verify:
@@ -597,6 +607,16 @@ across-context setup --all --yes
 - 生成 `CLAUDE.md`
 - 生成 Cursor MCP 配置和规则
 - 注入自动读写记忆的行为规则
+
+### v0.8.8 新能力
+
+- 将 Across Context 的 agent card 与 native skills 导出为 agentskills.io
+  目录，并把 Codex、Claude Code、Qwen Code 的 Skills 目录作为已脱敏的
+  pending memory summary 导入。
+- 增加 `vault`、`mem0`、`graphrag` 记忆后端合同，默认仍为本地 vault，
+  不引入强制网络依赖。
+- 在现有记忆策略限制内压缩 rich Lab v2 trust receipt，避免长期记忆写入
+  被截断成不可解析 JSON。
 
 ### v0.8.7 新能力
 

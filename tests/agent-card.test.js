@@ -16,11 +16,15 @@ test("renderAgentCard describes Across Context as a local memory provider", asyn
   assert.equal(card.capabilities.agentLoopMemoryHooks, true);
   assert.equal(card.capabilities.evidenceGraphMemory, true);
   assert.equal(card.capabilities.agentTeamTrustReceipts, true);
+  assert.equal(card.capabilities.agentTeamTrustReceiptsA2AV2, true);
+  assert.equal(card.capabilities.skillsBridge, true);
+  assert.equal(card.capabilities.memoryBackendSwitch, true);
   assert.equal(card.capabilities.allProjectPendingReview, true);
   assert.equal(card.endpoints.mcp.command, "across-context");
   assert.equal(card.protocols.mcp.transport, "stdio");
   assert.equal(card.protocols.mcp.resources, true);
   assert.equal(card.protocols.a2a.discoveryReady, true);
+  assert.equal(card.protocols.a2a.delegationSchema, "across-a2a-task-delegation/2.0");
   assert.equal(card.governance.pendingApproval, true);
   assert.equal(card.governance.allProjectPendingReview, true);
   assert.equal(card.governance.loopMemoryPolicy.defaultWriteStatus, "pending");
@@ -31,13 +35,17 @@ test("renderAgentCard describes Across Context as a local memory provider", asyn
   assert.deepEqual(card.memory.reviewModes, ["global", "project", "all-projects"]);
   assert.equal(card.memory.evidenceGraphSchema, "across-evidence-graph/1.0");
   assert.equal(card.memory.agentTeamReceiptSchema, "across-agent-team-receipt-memory/1.0");
+  assert.deepEqual(card.memory.supportedBackends, ["vault", "mem0", "graphrag"]);
   assert.equal(card.vault.storage, "local-jsonl");
+  assert.equal(card.vault.backend.schema_version, "across-memory-backend/1.0");
   assert.equal(card.vault.home, undefined);
+  assert.equal(card.skill_bridge.export_schema, "agentskills.io-export/1.0");
   assert.doesNotMatch(JSON.stringify(card), new RegExp(escapeRegExp(home)));
   assert.ok(card.skills.some((skill) => skill.id === "shared-memory"));
   assert.ok(card.skills.some((skill) => skill.id === "agent-loop-memory-hooks"));
   assert.ok(card.skills.some((skill) => skill.id === "evidence-graph-memory"));
   assert.ok(card.skills.some((skill) => skill.id === "agent-team-trust-receipts"));
+  assert.ok(card.skills.some((skill) => skill.id === "skills-bridge"));
 });
 
 function escapeRegExp(value) {

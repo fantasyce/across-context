@@ -1,6 +1,7 @@
 import { appendFile, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { MemoryPolicyEngine, isSensitivePolicyDecision, normalizeMemoryText } from "./memory-policy.js";
+import { resolveMemoryBackend } from "./memory-backend.js";
 import { searchEntries } from "./semantic-search.js";
 import {
   defaultHome,
@@ -20,6 +21,7 @@ export class ContextVault {
     this.env = options.env || process.env;
     this.home = resolve(options.home || defaultHome(this.env));
     this.policy = new MemoryPolicyEngine(options.policy || {});
+    this.backend = resolveMemoryBackend({ ...options, env: this.env });
   }
 
   async init() {
@@ -140,6 +142,7 @@ export class ContextVault {
     const memories = await this.listMemories(options);
     return {
       home: this.home,
+      memoryBackend: this.backend,
       total: memories.length,
       byScope: countBy(memories, "scope"),
       byType: countBy(memories, "type"),

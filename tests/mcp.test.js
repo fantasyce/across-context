@@ -1,4 +1,4 @@
-import { mkdtemp } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -17,12 +17,15 @@ test("MCP server definition exposes memory tools backed by the vault", async () 
       "approve_memory",
       "diff_loop_memory",
       "export_agent_instructions",
+      "export_skills",
       "get_agent_card",
       "get_agent_loop_memory_metrics",
       "get_agent_loop_memory_policy",
       "get_context_packs",
       "get_loop_history",
+      "get_memory_backend",
       "get_project_context",
+      "import_skill_memory",
       "recall_agent_team_receipts",
       "recall_evidence_memory",
       "recall_loop_memory",
@@ -61,6 +64,8 @@ test("MCP server definition exposes resources and prompts", async () => {
   assert.ok(definition.resources.some((resource) => resource.uri === "across-context://context-packs"));
   assert.ok(definition.resources.some((resource) => resource.uri === "across-context://evidence-memory-policy"));
   assert.ok(definition.resources.some((resource) => resource.uri === "across-context://agent-team-receipts"));
+  assert.ok(definition.resources.some((resource) => resource.uri === "across-context://skill-export"));
+  assert.ok(definition.resources.some((resource) => resource.uri === "across-context://memory-backend"));
   assert.ok(definition.prompts.some((prompt) => prompt.name === "task-start-context"));
   assert.ok(definition.prompts.some((prompt) => prompt.name === "agent-loop-memory-policy"));
 
@@ -102,6 +107,14 @@ test("MCP server definition exposes resources and prompts", async () => {
   const receiptsResource = await definition.readResource("across-context://agent-team-receipts", {});
   const receipts = JSON.parse(receiptsResource.contents[0].text);
   assert.equal(receipts.schema_version, "across-context-agent-team-receipt-recall/1.0");
+
+  const skillExportResource = await definition.readResource("across-context://skill-export", {});
+  const skillExport = JSON.parse(skillExportResource.contents[0].text);
+  assert.equal(skillExport.schema_version, "agentskills.io-export/1.0");
+
+  const backendResource = await definition.readResource("across-context://memory-backend", {});
+  const backend = JSON.parse(backendResource.contents[0].text);
+  assert.equal(backend.schema_version, "across-memory-backend/1.0");
 });
 
 test("MCP stores and recalls compact evidence memory", async () => {
@@ -143,7 +156,8 @@ test("MCP stores and recalls agent-team trust receipts", async () => {
       pack_id: "plugin-compatibility-lab-v2",
       acceptance_checklist: [{ id: "workflow_pack_valid", status: "passed", required: true }],
       evidence_contract: {
-        required: ["runtime_policy", "trust_boundary", "host_exports", "evidence_graph", "validation_gates"]
+        required: ["runtime_policy", "trust_boundary", "host_exports", "evidence_graph", "validation_gates"],
+        a2a_delegation_schema: "across-a2a-task-delegation/2.0"
       }
     },
     product_card: {
@@ -157,6 +171,31 @@ test("MCP stores and recalls agent-team trust receipts", async () => {
   assert.equal(remembered.structuredContent.result.status, "accepted_pending");
   assert.equal(recalled.structuredContent.result.result_count, 1);
   assert.equal(recalled.structuredContent.result.results[0].headline, "Test an agent plugin before adoption.");
+  assert.equal(recalled.structuredContent.result.results[0].a2a.schema_version, "across-a2a-task-delegation/2.0");
+});
+
+test("MCP exports and imports skill bridge contracts", async () => {
+  const home = await mkdtemp(join(tmpdir(), "across-context-mcp-skill-bridge-"));
+  const root = await mkdtemp(join(tmpdir(), "across-context-mcp-skills-"));
+  const skill = join(root, "demo-skill");
+  await mkdir(skill, { recursive: true });
+  const fakeKey = "s" + "k-" + "shouldnotleak1234567890";
+  await writeFile(join(skill, "SKILL.md"), `# Demo Skill\n\nUse for MCP bridge. ${fakeKey}\n`, "utf8");
+  const vault = new ContextVault({ home });
+  const definition = createContextMcpServerDefinition(vault);
+  const exportSkills = definition.tools.find((tool) => tool.name === "export_skills");
+  const importSkills = definition.tools.find((tool) => tool.name === "import_skill_memory");
+  const backend = definition.tools.find((tool) => tool.name === "get_memory_backend");
+
+  const exported = await exportSkills.handler({});
+  const imported = await importSkills.handler({ root });
+  const mem0 = await backend.handler({ backend: "mem0" });
+
+  assert.equal(exported.structuredContent.result.schema_version, "agentskills.io-export/1.0");
+  assert.equal(imported.structuredContent.result.summary.memory_count, 1);
+  assert.doesNotMatch(JSON.stringify(imported), /shouldnotleak/);
+  assert.equal(mem0.structuredContent.result.backend, "mem0");
+  assert.equal(mem0.structuredContent.result.network_dependency_required, false);
 });
 
 test("MCP exposes Agent Loop memory metrics without raw memory text", async () => {

@@ -3,14 +3,16 @@ import { exportContext, renderContextDocument } from "./exporters.js";
 import { learnProject } from "./project.js";
 import { renderAgentCard } from "./agent-card.js";
 import { renderAgentLoopMemoryPolicy, renderAgentLoopMemoryPromptText } from "./loop-memory-policy.js";
+import { resolveMemoryBackend } from "./memory-backend.js";
 import { contextPackSummary, loopHistory, loopMemoryDiff, recallLoopMemory, rememberLoopMemory } from "./autopilot-loop-memory.js";
 import { recallEvidenceMemory, rememberEvidenceMemory } from "./evidence-memory.js";
 import { recallAgentTeamReceipts, rememberAgentTeamReceipt } from "./agent-team-receipts.js";
+import { importSkillDirectories, renderSkillExport } from "./skill-export.js";
 
 export function createContextMcpServerDefinition(vault) {
   return {
     name: "across-context",
-    version: "0.8.7",
+    version: "0.8.8",
     resources: [
       {
         uri: "across-context://agent-card",
@@ -64,6 +66,18 @@ export function createContextMcpServerDefinition(vault) {
         uri: "across-context://agent-team-receipts",
         name: "Agent Team Trust Receipts",
         description: "Pending trust receipts for workflow adoption and promotion reviews.",
+        mimeType: "application/json"
+      },
+      {
+        uri: "across-context://skill-export",
+        name: "Skills Bridge Export",
+        description: "agentskills.io export files for Across Context native skills.",
+        mimeType: "application/json"
+      },
+      {
+        uri: "across-context://memory-backend",
+        name: "Memory Backend Contract",
+        description: "Local vault, Mem0, and GraphRAG backend switch contract with redacted-summary policy.",
         mimeType: "application/json"
       }
     ],
@@ -228,6 +242,50 @@ export function createContextMcpServerDefinition(vault) {
           properties: {}
         },
         handler: async () => textResult(JSON.stringify(await renderAgentCard(vault), null, 2))
+      },
+      {
+        name: "export_skills",
+        description: "Export Across Context native skills as agentskills.io files without raw memory.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            outputDir: { type: "string" },
+            output_dir: { type: "string" }
+          }
+        },
+        handler: async (args) => {
+          const result = await renderSkillExport(vault, { outputDir: args.outputDir || args.output_dir });
+          return textResult(JSON.stringify(result, null, 2), { result });
+        }
+      },
+      {
+        name: "import_skill_memory",
+        description: "Import local Codex, Claude Code, or Qwen Code skill directories as redacted pending memory summaries.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            root: { type: "string" },
+            roots: { type: "array", items: { type: "string" } }
+          }
+        },
+        handler: async (args) => {
+          const result = await importSkillDirectories(vault, { roots: args.roots || args.root });
+          return textResult(JSON.stringify(result, null, 2), { result });
+        }
+      },
+      {
+        name: "get_memory_backend",
+        description: "Return the active memory backend contract. Mem0 and GraphRAG are optional projection backends; vault remains local default.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            backend: { type: "string", enum: ["vault", "mem0", "graphrag"] }
+          }
+        },
+        handler: async (args) => {
+          const result = resolveMemoryBackend({ backend: args.backend, env: vault.env || process.env });
+          return textResult(JSON.stringify(result, null, 2), { result });
+        }
       },
       {
         name: "get_agent_loop_memory_policy",
@@ -505,6 +563,12 @@ async function readResource(vault, uri, args = {}) {
       status: args.status
     });
     return resourceResult(uri, "application/json", JSON.stringify(result, null, 2));
+  }
+  if (uri === "across-context://skill-export") {
+    return resourceResult(uri, "application/json", JSON.stringify(await renderSkillExport(vault), null, 2));
+  }
+  if (uri === "across-context://memory-backend") {
+    return resourceResult(uri, "application/json", JSON.stringify(resolveMemoryBackend({ env: vault.env || process.env }), null, 2));
   }
   throw new Error(`Unknown resource: ${uri}`);
 }

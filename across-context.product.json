@@ -8,10 +8,10 @@
   "part_of": "Across",
   "repository": "fantasyce/across-context",
   "current_release": {
-    "version": "v0.8.7",
+    "version": "v0.8.8",
     "published_at": "2026-06-29",
-    "tag": "v0.8.7",
-    "release_url": "https://github.com/fantasyce/across-context/releases/tag/v0.8.7"
+    "tag": "v0.8.8",
+    "release_url": "https://github.com/fantasyce/across-context/releases/tag/v0.8.8"
   },
   "role": "local memory provider",
   "hosts": [
@@ -29,7 +29,10 @@
     "pending review",
     "context packs",
     "MCP memory tools",
-    "loop memory summaries"
+    "loop memory summaries",
+    "agentskills.io bridge",
+    "optional mem0/graphrag backend projections",
+    "A2A-compatible trust receipt memory"
   ],
   "does_not_own": [
     "task execution",
