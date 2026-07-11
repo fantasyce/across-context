@@ -116,6 +116,18 @@ The current Agent Loop memory contract is complete for host integration:
 - all-project pending review
 - aggregate memory-candidate metrics
 - CLI and MCP metrics access
+
+## Governed Distillation
+
+Session and pending Agent Loop candidates may be passed to the deterministic
+`improve` workflow. It deduplicates exact normalized content, clusters records
+within the same project and derived memory schema, and emits compact
+`across-context-distilled-memory-proposal/1.0` records. These records remain
+pending until explicit approval. Approval archives superseded sources;
+rollback archives the proposal and restores source statuses from provenance.
+Forgetting a source also removes dependent proposals and refreshes derived
+projections. Secret-bearing sources are excluded, while local paths, raw
+transcripts, and hidden reasoning are redacted before proposal generation.
 - raw-text exclusion tests
 
 Future product scopes, such as dashboard analytics, cross-device sync,

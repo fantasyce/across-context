@@ -1,11 +1,16 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { learnProject } from "./project.js";
+import { ACTIVE_MEMORY_STATUSES } from "./vault.js";
 
 export async function renderContextDocument(vault, input) {
   const projectRoot = resolve(input.projectRoot);
   const profile = await vault.getProjectProfile(projectRoot) || await learnProject(projectRoot);
-  const memories = await vault.listMemories({ projectRoot, includeGlobal: true });
+  const memories = await vault.listMemories({
+    projectRoot,
+    includeGlobal: true,
+    statuses: ACTIVE_MEMORY_STATUSES
+  });
   const globalMemories = memories.filter((entry) => entry.scope === "global");
   const projectMemories = memories.filter((entry) => entry.scope === "project");
   const lines = [];

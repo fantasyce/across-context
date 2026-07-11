@@ -1,19 +1,10 @@
+import { ACTIVE_MEMORY_STATUSES } from "./vault.js";
+import { containsSecret, redactLocalPaths } from "./memory-policy.js";
+
 const LOOP_MEMORY_SCHEMA = "across-loop-memory/1.0";
 const RECALL_SCHEMA = "across-context-loop-recall/1.0";
 const DIFF_SCHEMA = "across-context-loop-memory-diff/1.0";
 const CONTEXT_PACK_SCHEMA = "across-context-pack-summary/1.0";
-
-const REJECT_PATTERNS = [
-  /\bsk-[A-Za-z0-9_-]{20,}\b/,
-  /-----BEGIN .*PRIVATE KEY-----/,
-  /\b(api[_-]?key|token|secret|password|cookie)\s*[:=]\s*\S+/i
-];
-
-const REDACT_PATTERNS = [
-  /\/Users\/[^\s]+\/Documents\/projects\/[^\s]+/g,
-  /\/Users\/[^\s]+\/Desktop\/[^\s]+/g,
-  /\/Users\/[^\s]+\/Downloads\/[^\s]+/g
-];
 
 export async function rememberLoopMemory(vault, input = {}) {
   const specId = required(input.specId || input.spec_id, "spec id");
@@ -70,7 +61,7 @@ export async function recallLoopMemory(vault, options = {}) {
   const memories = await vault.listMemories({
     includeGlobal: true,
     includeProjects: true,
-    status: options.status
+    ...recallStatusFilter(options)
   });
   const parsed = memories
     .map((entry) => ({ entry, payload: parseLoopMemory(entry.text) }))
@@ -99,7 +90,11 @@ export async function recallLoopMemory(vault, options = {}) {
 }
 
 export async function loopHistory(vault, options = {}) {
-  const recall = await recallLoopMemory(vault, { specId: options.specId, limit: options.limit || 50 });
+  const recall = await recallLoopMemory(vault, {
+    specId: options.specId,
+    limit: options.limit || 50,
+    status: options.status
+  });
   const bySpec = {};
   for (const result of recall.results) {
     const bucket = bySpec[result.spec_id] || { spec_id: result.spec_id, run_count: 0, pending_count: 0, redacted_count: 0 };
@@ -118,8 +113,8 @@ export async function loopHistory(vault, options = {}) {
 export async function loopMemoryDiff(vault, options = {}) {
   const a = required(options.runIdA || options.run_id_a, "first run id");
   const b = required(options.runIdB || options.run_id_b, "second run id");
-  const left = await recallLoopMemory(vault, { runId: a, limit: 100 });
-  const right = await recallLoopMemory(vault, { runId: b, limit: 100 });
+  const left = await recallLoopMemory(vault, { runId: a, limit: 100, status: options.status });
+  const right = await recallLoopMemory(vault, { runId: b, limit: 100, status: options.status });
   const leftText = new Set(left.results.map((item) => item.text));
   const rightText = new Set(right.results.map((item) => item.text));
   return {
@@ -139,7 +134,7 @@ export async function contextPackSummary(vault, options = {}) {
     projectRoot: options.projectRoot || options.project,
     includeGlobal: true,
     includeProjects: options.includeProjects !== false,
-    status: options.status
+    ...recallStatusFilter(options)
   });
   const filtered = agentPluginId
     ? memories.filter((entry) => memoryAgentPluginIds(entry).includes(agentPluginId))
@@ -179,6 +174,7 @@ export async function contextPackSummary(vault, options = {}) {
   return {
     schema_version: CONTEXT_PACK_SCHEMA,
     provider: "across-context",
+    review_mode: options.status === "pending",
     status: pendingCount ? "attention" : "passed",
     summary: {
       memory_count: filtered.length,
@@ -208,17 +204,10 @@ function emptyAgentPluginPack(agentPluginId) {
 
 export function enforceLoopMemoryPolicy(text) {
   if (!text) return { status: "rejected", reason: "Memory text is required.", text: "" };
-  for (const pattern of REJECT_PATTERNS) {
-    if (pattern.test(text)) return { status: "rejected", reason: "Memory looks like a secret or credential.", text: "" };
+  if (containsSecret(text)) {
+    return { status: "rejected", reason: "Memory looks like a secret or credential.", text: "" };
   }
-  let redacted = text;
-  let count = 0;
-  for (const pattern of REDACT_PATTERNS) {
-    redacted = redacted.replace(pattern, () => {
-      count += 1;
-      return "[REDACTED_LOCAL_PATH]";
-    });
-  }
+  const { text: redacted, count } = redactLocalPaths(text);
   if (count) return { status: "redacted_pending", reason: "Local path was redacted.", text: redacted, redactions: count };
   return { status: "accepted_pending", reason: "Memory passed loop policy.", text, redactions: 0 };
 }
@@ -245,4 +234,14 @@ function required(value, name) {
   const text = String(value || "").trim();
   if (!text) throw new Error(`${name} is required`);
   return text;
+}
+
+function recallStatusFilter(options = {}) {
+  return hasExplicitStatus(options)
+    ? { status: options.status }
+    : { statuses: ACTIVE_MEMORY_STATUSES };
+}
+
+function hasExplicitStatus(options = {}) {
+  return options.status !== undefined && String(options.status).trim() !== "";
 }

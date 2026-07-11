@@ -23,6 +23,13 @@ async function seededVault() {
     text: "Do not rewrite the native shell without approval.",
     projectRoot
   });
+  await vault.remember({
+    scope: "project",
+    type: "session",
+    text: "Unreviewed project transcript summary must not load.",
+    projectRoot,
+    status: "pending"
+  });
   return { vault, projectRoot };
 }
 
@@ -40,6 +47,7 @@ test("renderContextDocument renders an AGENTS.md compatible context document", a
   assert.match(document, /MCP resources and prompts/i);
   assert.match(document, /Search explanations/i);
   assert.match(document, /pending review/i);
+  assert.doesNotMatch(document, /Unreviewed project transcript summary/);
   assert.doesNotMatch(document, new RegExp(projectRoot.replaceAll("/", "\\/")));
 });
 

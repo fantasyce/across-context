@@ -1,0 +1,155 @@
+{
+  "schema_version": "across-context-retrieval-eval-fixture/1.0",
+  "minimum_recall_at_k": 0.9,
+  "minimum_mean_reciprocal_rank": 0.75,
+  "minimum_precision_at_k": 0.5,
+  "minimum_ndcg_at_k": 0.9,
+  "minimum_route_coverage": 1,
+  "cases": [
+    {
+      "id": "repo-qa",
+      "category": "repo_qa",
+      "route": "keyword",
+      "query": "repository quality lint generated files",
+      "k": 2,
+      "minimum_recall_at_k": 1,
+      "expected_ids": ["repo-qa-command"],
+      "records": [
+        {
+          "id": "repo-qa-command",
+          "scope": "project",
+          "type": "command",
+          "status": "active",
+          "text": "Run npm lint and the generated-file policy check before repository quality review.",
+          "tags": ["repo-qa", "quality-gate"],
+          "createdAt": "2026-07-01T00:00:00.000Z"
+        },
+        {
+          "id": "repo-qa-noise",
+          "scope": "project",
+          "type": "note",
+          "status": "active",
+          "text": "The dashboard accent color is neutral.",
+          "tags": ["ui"],
+          "createdAt": "2026-07-01T00:00:00.000Z"
+        }
+      ]
+    },
+    {
+      "id": "release-readiness",
+      "category": "release_readiness",
+      "route": "embedding",
+      "query": "ship publish verification",
+      "k": 2,
+      "minimum_recall_at_k": 1,
+      "expected_ids": ["release-decision"],
+      "records": [
+        {
+          "id": "release-decision",
+          "scope": "project",
+          "type": "decision",
+          "status": "pinned",
+          "text": "Release readiness requires tests, package inspection, and a human promotion review before publishing.",
+          "tags": ["release-readiness"],
+          "createdAt": "2026-07-01T00:00:00.000Z"
+        },
+        {
+          "id": "release-pending-noise",
+          "scope": "project",
+          "type": "session",
+          "status": "pending",
+          "text": "Unreviewed release idea.",
+          "tags": ["release"],
+          "createdAt": "2026-07-02T00:00:00.000Z"
+        }
+      ]
+    },
+    {
+      "id": "project-profile",
+      "category": "project_profile",
+      "route": "project_profile",
+      "query": "package manager test command",
+      "k": 2,
+      "minimum_recall_at_k": 1,
+      "expected_ids": ["project-command"],
+      "records": [
+        {
+          "id": "project-command",
+          "scope": "project",
+          "type": "command",
+          "status": "active",
+          "text": "Use npm test as the project package validation command.",
+          "tags": ["verified-command"],
+          "createdAt": "2026-07-01T00:00:00.000Z"
+        },
+        {
+          "id": "profile-noise",
+          "scope": "project",
+          "type": "note",
+          "status": "active",
+          "text": "Keep headings concise.",
+          "tags": ["docs"],
+          "createdAt": "2026-07-01T00:00:00.000Z"
+        }
+      ]
+    },
+    {
+      "id": "evidence-recall",
+      "category": "evidence_recall",
+      "route": "evidence_graph",
+      "query": "quality gate evidence receipt",
+      "k": 2,
+      "minimum_recall_at_k": 1,
+      "expected_ids": ["release-evidence"],
+      "records": [
+        {
+          "id": "release-evidence",
+          "scope": "global",
+          "type": "session",
+          "status": "active",
+          "text": "{\"schema_version\":\"across-evidence-memory/1.0\",\"summary\":\"Repository quality gate passed with release evidence receipt.\",\"graph\":{\"nodes\":[],\"edges\":[]}}",
+          "tags": ["release-evidence", "quality-gate"],
+          "createdAt": "2026-07-01T00:00:00.000Z"
+        },
+        {
+          "id": "ordinary-note",
+          "scope": "global",
+          "type": "note",
+          "status": "active",
+          "text": "Use compact headings.",
+          "tags": [],
+          "createdAt": "2026-07-01T00:00:00.000Z"
+        }
+      ]
+    },
+    {
+      "id": "recurring-bug-fix",
+      "category": "recurring_bug_fix",
+      "route": "loop_recall",
+      "query": "spawn ffmpeg ENOENT recurring fix",
+      "k": 2,
+      "minimum_recall_at_k": 1,
+      "expected_ids": ["bug-fix-pattern"],
+      "records": [
+        {
+          "id": "bug-fix-pattern",
+          "scope": "project",
+          "type": "note",
+          "status": "active",
+          "text": "Recurring spawn ffmpeg ENOENT failure: resolve the packaged binary path before launching the process.",
+          "tags": ["failure-pattern", "bug-fix"],
+          "createdAt": "2026-07-01T00:00:00.000Z"
+        },
+        {
+          "id": "bug-fix-noise",
+          "scope": "project",
+          "type": "decision",
+          "status": "active",
+          "text": "Keep release notes concise.",
+          "tags": ["docs"],
+          "createdAt": "2026-07-01T00:00:00.000Z"
+        }
+      ]
+    }
+  ]
+}

@@ -18,14 +18,19 @@ test("MCP server definition exposes memory tools backed by the vault", async () 
       "diff_loop_memory",
       "export_agent_instructions",
       "export_skills",
+      "forget_projected_memory",
       "get_agent_card",
       "get_agent_loop_memory_metrics",
       "get_agent_loop_memory_policy",
       "get_context_packs",
       "get_loop_history",
       "get_memory_backend",
+      "get_memory_schema_summary",
       "get_project_context",
       "import_skill_memory",
+      "improve_memory",
+      "inspect_memory_projection",
+      "rebuild_memory_projection",
       "recall_agent_team_receipts",
       "recall_evidence_memory",
       "recall_loop_memory",
@@ -33,7 +38,11 @@ test("MCP server definition exposes memory tools backed by the vault", async () 
       "remember_context",
       "remember_evidence_memory",
       "remember_loop_memory",
+      "retrieve_context",
+      "retrieve_context_merged",
       "review_pending_memories",
+      "rollback_distilled_memory",
+      "run_retrieval_evaluation",
       "search_context"
     ]
   );
@@ -66,6 +75,10 @@ test("MCP server definition exposes resources and prompts", async () => {
   assert.ok(definition.resources.some((resource) => resource.uri === "across-context://agent-team-receipts"));
   assert.ok(definition.resources.some((resource) => resource.uri === "across-context://skill-export"));
   assert.ok(definition.resources.some((resource) => resource.uri === "across-context://memory-backend"));
+  assert.ok(definition.resources.some((resource) => resource.uri === "across-context://memory-schemas"));
+  assert.ok(definition.resources.some((resource) => resource.uri === "across-context://retrieval-routes"));
+  assert.ok(definition.resources.some((resource) => resource.uri === "across-context://memory-projection"));
+  assert.ok(definition.resources.some((resource) => resource.uri === "across-context://memory-distillation-policy"));
   assert.ok(definition.prompts.some((prompt) => prompt.name === "task-start-context"));
   assert.ok(definition.prompts.some((prompt) => prompt.name === "agent-loop-memory-policy"));
 
@@ -115,6 +128,23 @@ test("MCP server definition exposes resources and prompts", async () => {
   const backendResource = await definition.readResource("across-context://memory-backend", {});
   const backend = JSON.parse(backendResource.contents[0].text);
   assert.equal(backend.schema_version, "across-memory-backend/1.0");
+
+  const schemasResource = await definition.readResource("across-context://memory-schemas", {});
+  const schemas = JSON.parse(schemasResource.contents[0].text);
+  assert.ok(schemas.definitions.some((item) => item.id === "trust_receipt"));
+
+  const routesResource = await definition.readResource("across-context://retrieval-routes", {});
+  const routes = JSON.parse(routesResource.contents[0].text);
+  assert.deepEqual(routes.routes.map((route) => route.id), ["keyword", "embedding", "evidence_graph", "project_profile", "loop_recall"]);
+
+  const projectionResource = await definition.readResource("across-context://memory-projection", {});
+  const projection = JSON.parse(projectionResource.contents[0].text);
+  assert.equal(projection.status, "not_built");
+
+  const distillationPolicyResource = await definition.readResource("across-context://memory-distillation-policy", {});
+  const distillationPolicy = JSON.parse(distillationPolicyResource.contents[0].text);
+  assert.equal(distillationPolicy.default_status, "pending");
+  assert.equal(distillationPolicy.rollback_supported, true);
 });
 
 test("MCP stores and recalls compact evidence memory", async () => {
@@ -134,7 +164,7 @@ test("MCP stores and recalls compact evidence memory", async () => {
     },
     summary: "MCP evidence graph"
   });
-  const recalled = await recall.handler({ runId: "run-mcp" });
+  const recalled = await recall.handler({ runId: "run-mcp", status: "pending" });
 
   assert.equal(remembered.structuredContent.result.status, "accepted_pending");
   assert.equal(recalled.structuredContent.result.result_count, 1);
@@ -166,7 +196,7 @@ test("MCP stores and recalls agent-team trust receipts", async () => {
       competitive_position: "trust layer"
     }
   });
-  const recalled = await recall.handler({ packId: "plugin-compatibility-lab-v2" });
+  const recalled = await recall.handler({ packId: "plugin-compatibility-lab-v2", status: "pending" });
 
   assert.equal(remembered.structuredContent.result.status, "accepted_pending");
   assert.equal(recalled.structuredContent.result.result_count, 1);
@@ -275,9 +305,14 @@ test("MCP exposes context packs filtered by generic agent plugin id", async () =
 
   assert.equal(payload.schema_version, "across-context-pack-summary/1.0");
   assert.equal(payload.summary.filtered_agent_plugin_id, "demo.echo-agent");
-  assert.equal(payload.summary.memory_count, 2);
+  assert.equal(payload.summary.memory_count, 1);
   assert.equal(payload.summary.agent_plugin_count, 1);
   assert.ok(payload.packs.every((pack) => pack.agent_plugin_id === "demo.echo-agent"));
+
+  const pendingResult = await getContextPacks.handler({ agentPluginId: "demo.echo-agent", status: "pending" });
+  const pendingPayload = JSON.parse(pendingResult.content[0].text);
+  assert.equal(pendingPayload.summary.memory_count, 1);
+  assert.equal(pendingPayload.review_mode, true);
 });
 
 test("search_context prioritizes agent-plugin scoped memory when agentPluginId is supplied", async () => {
@@ -323,6 +358,45 @@ test("search_context prioritizes agent-plugin scoped memory when agentPluginId i
   assert.match(scopedPayload.results[0].entry.text, /Echo agent risk memory/);
 });
 
+test("MCP retrieval and projection surfaces enforce review and deletion propagation", async () => {
+  const home = await mkdtemp(join(tmpdir(), "across-context-mcp-vnext-memory-"));
+  const vault = new ContextVault({ home });
+  const definition = createContextMcpServerDefinition(vault);
+  const active = await vault.remember({ scope: "global", type: "decision", status: "active", text: "Release readiness requires npm check." });
+  await vault.remember({ scope: "global", type: "note", status: "pending", text: "Release readiness pending speculation." });
+  const search = definition.tools.find((tool) => tool.name === "search_context");
+  const retrieve = definition.tools.find((tool) => tool.name === "retrieve_context");
+  const rebuild = definition.tools.find((tool) => tool.name === "rebuild_memory_projection");
+  const inspect = definition.tools.find((tool) => tool.name === "inspect_memory_projection");
+  const forget = definition.tools.find((tool) => tool.name === "forget_projected_memory");
+  const evaluate = definition.tools.find((tool) => tool.name === "run_retrieval_evaluation");
+
+  const ordinary = await search.handler({ query: "release readiness" });
+  assert.equal(ordinary.structuredContent.results.length, 1);
+  await assert.rejects(() => search.handler({ query: "release", status: "pending" }), /reviewPending=true/);
+
+  const pendingReview = await retrieve.handler({
+    route: "keyword",
+    query: "release readiness",
+    status: "pending",
+    reviewPending: true
+  });
+  assert.equal(pendingReview.structuredContent.result.results[0].entry.status, "pending");
+
+  const rebuilt = await rebuild.handler({});
+  assert.equal(rebuilt.structuredContent.result.included_record_count, 1);
+  const inspected = await inspect.handler({});
+  assert.equal(inspected.structuredContent.result.status, "ready");
+
+  const forgotten = await forget.handler({ id: active.id });
+  assert.equal(forgotten.structuredContent.result.authoritative_forgotten, 1);
+  const projectionResource = await definition.readResource("across-context://memory-projection", {});
+  assert.equal(JSON.parse(projectionResource.contents[0].text).included_record_count, 0);
+
+  const evaluated = await evaluate.handler({});
+  assert.equal(evaluated.structuredContent.result.passed, true);
+});
+
 test("MCP exposes a virtual empty context pack for a new generic agent plugin", async () => {
   const home = await mkdtemp(join(tmpdir(), "across-context-mcp-empty-agent-plugin-pack-"));
   const vault = new ContextVault({ home });
@@ -339,4 +413,31 @@ test("MCP exposes a virtual empty context pack for a new generic agent plugin", 
   assert.equal(payload.packs[0].id, "demo.echo-agent:empty");
   assert.equal(payload.packs[0].virtual, true);
   assert.equal(payload.packs[0].ready_for_agent_loading, true);
+});
+
+test("MCP distills, approves, rolls back, and merges governed memory", async () => {
+  const home = await mkdtemp(join(tmpdir(), "across-context-mcp-improve-"));
+  const vault = new ContextVault({ home });
+  await vault.remember({
+    scope: "global",
+    type: "session",
+    status: "pending",
+    text: "Recurring release timeout requires bounded retry and evidence review.",
+    tags: ["failure-pattern"]
+  });
+  const definition = createContextMcpServerDefinition(vault);
+  const improve = definition.tools.find((tool) => tool.name === "improve_memory");
+  const approve = definition.tools.find((tool) => tool.name === "approve_memory");
+  const rollback = definition.tools.find((tool) => tool.name === "rollback_distilled_memory");
+  const merged = definition.tools.find((tool) => tool.name === "retrieve_context_merged");
+
+  const improved = await improve.handler({});
+  const proposalId = improved.structuredContent.result.proposals[0].memory.id;
+  const approved = await approve.handler({ id: proposalId });
+  const recalled = await merged.handler({ query: "release timeout retry", routes: ["keyword", "loop_recall"] });
+  const rolledBack = await rollback.handler({ id: proposalId });
+
+  assert.equal(approved.structuredContent.result.status, "active");
+  assert.equal(recalled.structuredContent.result.strategy, "weighted-reciprocal-rank-fusion");
+  assert.equal(rolledBack.structuredContent.result.status, "archived");
 });

@@ -15,6 +15,11 @@ import { recallEvidenceMemory, rememberEvidenceMemory } from "./evidence-memory.
 import { recallAgentTeamReceipts, rememberAgentTeamReceipt } from "./agent-team-receipts.js";
 import { resolveMemoryBackend } from "./memory-backend.js";
 import { importSkillDirectories, renderSkillExport } from "./skill-export.js";
+import { retrieveAndMergeMemory, retrieveMemory } from "./memory-retrieval.js";
+import { MEMORY_SCHEMA_DEFINITIONS, schemaAwareSummary } from "./memory-schema.js";
+import { forgetProjectedMemory, inspectMemoryProjection, rebuildMemoryProjection } from "./memory-projection.js";
+import { runRetrievalEvaluation } from "./retrieval-eval.js";
+import { approveGovernedMemory, improveMemory, rollbackDistilledMemory } from "./memory-distillation.js";
 
 const vault = new ContextVault();
 
@@ -55,6 +60,9 @@ async function main(argv) {
 
   if (command === "search") {
     const parsed = parseArgs(rest);
+    if (parsed.status === "pending" && !parsed["review-pending"]) {
+      throw new Error("Pending search requires --review-pending; use `pending` for the review queue.");
+    }
     const query = parsed.positionals.join(" ").trim();
     const results = await vault.search({
       query,
@@ -77,6 +85,96 @@ async function main(argv) {
     for (const result of results) {
       console.log(`[${result.entry.scope}/${result.entry.type}] ${result.entry.text}`);
     }
+    return;
+  }
+
+  if (command === "retrieve") {
+    const parsed = parseArgs(rest);
+    const retrievalInput = {
+      query: parsed.positionals.join(" ").trim(),
+      projectRoot: parsed.project,
+      includeGlobal: true,
+      includeProjects: Boolean(parsed["all-projects"]),
+      limit: parsed.limit,
+      status: parsed.status,
+      reviewPending: Boolean(parsed["review-pending"]),
+      allowEmptyQuery: Boolean(parsed["allow-empty-query"]),
+      includeRouteResults: Boolean(parsed["include-route-results"])
+    };
+    const result = parsed.routes
+      ? await retrieveAndMergeMemory(vault, { ...retrievalInput, routes: String(parsed.routes).split(",") })
+      : await retrieveMemory(vault, { ...retrievalInput, route: parsed.route || "keyword" });
+    console.log(parsed.json ? JSON.stringify(result, null, 2) : parsed.routes ? formatMergedRetrieval(result) : formatRetrieval(result));
+    return;
+  }
+
+  if (command === "improve") {
+    const [subcommand, ...improveRest] = rest;
+    const parsed = parseArgs(improveRest);
+    if (subcommand === "run") {
+      const sourceIds = parsed["source-id"] ? (Array.isArray(parsed["source-id"]) ? parsed["source-id"] : [parsed["source-id"]]) : undefined;
+      const result = await improveMemory(vault, {
+        projectRoot: parsed.project,
+        includeProjects: Boolean(parsed["all-projects"]),
+        sourceIds,
+        similarityThreshold: parsed["similarity-threshold"],
+        maxProposalLength: parsed["max-proposal-length"]
+      });
+      console.log(parsed.json ? JSON.stringify(result, null, 2) : `distilled proposals: ${result.proposal_count}; rejected sources: ${result.rejected_source_count}`);
+      return;
+    }
+    if (subcommand === "rollback") {
+      const result = await rollbackDistilledMemory(vault, parsed.positionals[0] || parsed.id);
+      console.log(parsed.json ? JSON.stringify(result, null, 2) : `${result.proposal_id}: ${result.status}`);
+      return;
+    }
+    throw new Error("Usage: across-context improve run|rollback [options]");
+  }
+
+  if (command === "memory-schemas") {
+    const parsed = parseArgs(rest);
+    const memories = await vault.listMemories({
+      projectRoot: parsed.project,
+      includeGlobal: true,
+      includeProjects: Boolean(parsed["all-projects"]),
+      statuses: ["active", "pinned"]
+    });
+    const summary = schemaAwareSummary(memories);
+    console.log(parsed.json ? JSON.stringify(summary, null, 2) : MEMORY_SCHEMA_DEFINITIONS.map((item) => `${item.id}: ${summary.by_schema[item.id]}`).join("\n"));
+    return;
+  }
+
+  if (command === "projection") {
+    const [subcommand, ...projectionRest] = rest;
+    const parsed = parseArgs(projectionRest);
+    if (subcommand === "rebuild") {
+      const result = await rebuildMemoryProjection(vault, {
+        graph: parseBooleanOption(parsed.graph, true),
+        vector: parseBooleanOption(parsed.vector, true),
+        dimensions: parsed.dimensions
+      });
+      console.log(parsed.json ? JSON.stringify(result, null, 2) : `projection ${result.projection_id}: ${result.included_record_count} records`);
+      return;
+    }
+    if (subcommand === "inspect") {
+      const result = await inspectMemoryProjection(vault);
+      console.log(parsed.json ? JSON.stringify(result, null, 2) : `${result.status}: ${result.projection_id || "not built"}`);
+      return;
+    }
+    if (subcommand === "forget") {
+      const id = parsed.positionals[0] || parsed.id;
+      const result = await forgetProjectedMemory(vault, id);
+      console.log(parsed.json ? JSON.stringify(result, null, 2) : `forgotten: ${result.authoritative_forgotten}`);
+      return;
+    }
+    throw new Error("Usage: across-context projection rebuild|inspect|forget [memory-id]");
+  }
+
+  if (command === "retrieval-eval") {
+    const parsed = parseArgs(rest);
+    const result = await runRetrievalEvaluation({ fixturePath: parsed.fixture });
+    console.log(parsed.json ? JSON.stringify(result, null, 2) : `retrieval eval: ${result.passed ? "passed" : "failed"} (${result.recall_at_k} recall@k, ${result.mean_reciprocal_rank} MRR)`);
+    if (!result.passed) process.exitCode = 1;
     return;
   }
 
@@ -105,12 +203,14 @@ async function main(argv) {
   if (command === "approve" || command === "archive" || command === "expire") {
     const parsed = parseArgs(rest);
     const status = command === "approve" ? "active" : command === "archive" ? "archived" : "expired";
-    const entry = await vault.updateStatus(parsed.positionals[0], status);
+    const entry = command === "approve"
+      ? await approveGovernedMemory(vault, parsed.positionals[0])
+      : await vault.updateStatus(parsed.positionals[0], status);
     if (parsed.json) {
-      console.log(JSON.stringify({ memory: entry }, null, 2));
+      console.log(JSON.stringify(command === "approve" && entry.proposal_id ? entry : { memory: entry }, null, 2));
       return;
     }
-    console.log(`${entry.id}: ${entry.status}`);
+    console.log(`${entry.proposal_id || entry.id}: ${entry.status}`);
     return;
   }
 
@@ -135,7 +235,7 @@ async function main(argv) {
       projectRoot: parsed.project,
       includeGlobal: true,
       includeProjects: Boolean(parsed["all-projects"]),
-      status: parsed.status
+      ...(parsed.status ? { status: parsed.status } : { statuses: ["active", "pinned"] })
     });
     if (parsed.json) {
       console.log(JSON.stringify(memories, null, 2));
@@ -310,7 +410,7 @@ async function main(argv) {
 
   if (command === "loop-history") {
     const parsed = parseArgs(rest);
-    const result = await loopHistory(vault, { specId: parsed["spec-id"], limit: parsed.limit });
+    const result = await loopHistory(vault, { specId: parsed["spec-id"], limit: parsed.limit, status: parsed.status });
     console.log(parsed.json ? JSON.stringify(result, null, 2) : result.specs.map((item) => `${item.spec_id}: ${item.run_count}`).join("\n"));
     return;
   }
@@ -320,7 +420,8 @@ async function main(argv) {
     const ids = parsed["run-id"] || [];
     const result = await loopMemoryDiff(vault, {
       runIdA: Array.isArray(ids) ? ids[0] : parsed["run-id-a"],
-      runIdB: Array.isArray(ids) ? ids[1] : parsed["run-id-b"]
+      runIdB: Array.isArray(ids) ? ids[1] : parsed["run-id-b"],
+      status: parsed.status
     });
     console.log(parsed.json ? JSON.stringify(result, null, 2) : `added: ${result.added.length}\nremoved: ${result.removed.length}`);
     return;
@@ -558,12 +659,29 @@ function printHelp() {
 
 Commands:
   init                                  Create the local context vault
-  remember <text> [--scope global|project] [--type preference|decision|note|command|session] [--status pending|active] [--project path] [--json]
-  search <query> [--project path] [--mode keyword|semantic|hybrid]
-                                        Search global and project context
+  remember <text> [--scope global|project] [--type preference|decision|note|command|session] [--status pending|active|pinned] [--project path] [--json]
+  search <query> [--project path] [--mode keyword|semantic|hybrid] [--review-pending --status pending]
+                                        Search active and pinned global/project context by default
   search <query> --json [--explain]     Print structured search results
-  list [--project path|--all-projects] [--status pending|active|archived|expired] [--json]
-                                        List stored memories
+  retrieve <query> --route keyword|embedding|evidence_graph|project_profile|loop_recall [--project path] [--json]
+                                        Use an explicit deterministic retrieval route
+  retrieve <query> --routes keyword,embedding,evidence_graph,project_profile,loop_recall [--json]
+                                        Merge independent routes with explainable weighted reciprocal-rank fusion
+  improve run [--project path|--all-projects] [--source-id id] [--json]
+                                        Distill session/pending candidates into governed pending proposals
+  improve rollback <proposal-id> [--json]
+                                        Archive a proposal and restore source lifecycle states
+  memory-schemas [--project path|--all-projects] [--json]
+                                        Classify active/pinned records without migrating JSONL
+  projection rebuild [--graph false] [--vector false] [--dimensions 48] [--json]
+                                        Rebuild optional local graph and hash-vector projections
+  projection inspect [--json]           Inspect projection status and privacy policy
+  projection forget <memory-id> [--json]
+                                        Forget authoritative memory and propagate deletion to projections
+  retrieval-eval [--fixture path] [--json]
+                                        Run deterministic local retrieval quality fixtures
+  list [--project path|--all-projects] [--status pending|active|pinned|archived|expired] [--json]
+                                        List active/pinned memory; other states require --status
   pending [--project path|--all-projects] [--json]
                                         List pending automatic memories
   approve <memory-id> [--json]          Approve a pending memory
@@ -585,19 +703,21 @@ Commands:
                                         Summarize memories into Context Pack / Memory OS groups
   remember-loop --spec-id id --run-id id --text text --summary-json '{}' [--json]
                                         Store a pending loop memory summary with policy enforcement
-  recall-loop --spec-id id --limit 10 [--json]
-                                        Recall prior loop memory for a spec
-  recall-loop --run-id id [--json]      Recall loop memory for a run
+  recall-loop --spec-id id --limit 10 [--status pending] [--json]
+                                        Recall active/pinned loop memory for a spec; pending requires --status pending
+  recall-loop --run-id id [--status pending] [--json]
+                                        Recall active/pinned loop memory for a run
   remember-evidence --graph-json '{}' --spec-id id --run-id id [--summary text] [--json]
                                         Store compact evidence graph memory as pending review
-  recall-evidence --spec-id id|--run-id id [--json]
+  recall-evidence --spec-id id|--run-id id [--status pending] [--json]
                                         Recall compact evidence graph memory
   remember-agent-team-receipt --pack-id id --receipt-json '{}' [--product-card-json '{}'] [--protocol-readiness-json '{}'] [--json]
                                         Store an agent-team trust receipt as pending memory
-  recall-agent-team-receipts [--pack-id id] [--json]
+  recall-agent-team-receipts [--pack-id id] [--status pending] [--json]
                                         Recall agent-team trust receipts
-  loop-history [--spec-id id] [--json]  Summarize loop memory by spec
-  loop-memory-diff --run-id a --run-id b [--json]
+  loop-history [--spec-id id] [--status pending] [--json]
+                                        Summarize active/pinned loop memory by spec
+  loop-memory-diff --run-id a --run-id b [--status pending] [--json]
                                         Compare loop memory between two runs
   plugin-manifest [--json]              Print the Across plugin manifest
   plugin-status [--json]                Print host-install and protocol status
@@ -655,6 +775,11 @@ function formatContextPackSummary(summary) {
     lines.push(`${pack.id}: ${pack.count}`);
   }
   return lines.join("\n");
+}
+
+function formatMergedRetrieval(result) {
+  if (!result.results.length) return "No matching context found.";
+  return result.results.map((item) => `[${item.merged_rank}] ${item.entry.text}`).join("\n");
 }
 
 function mergeTags(base, extra) {
@@ -762,6 +887,18 @@ function formatCounts(counts) {
   const entries = Object.entries(counts || {});
   if (!entries.length) return "none";
   return entries.map(([key, value]) => `${key}=${value}`).join(", ");
+}
+
+function formatRetrieval(result) {
+  if (!result.results.length) return "No matching context found.";
+  return result.results.map((item) => `[${item.classification.primary_schema}] ${item.entry.text}`).join("\n");
+}
+
+function parseBooleanOption(value, fallback) {
+  if (value === undefined) return fallback;
+  if (value === true || value === "true" || value === "1") return true;
+  if (value === false || value === "false" || value === "0") return false;
+  throw new Error(`Invalid boolean option: ${value}`);
 }
 
 function omitExplanation(result) {

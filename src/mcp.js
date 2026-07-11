@@ -4,15 +4,21 @@ import { learnProject } from "./project.js";
 import { renderAgentCard } from "./agent-card.js";
 import { renderAgentLoopMemoryPolicy, renderAgentLoopMemoryPromptText } from "./loop-memory-policy.js";
 import { resolveMemoryBackend } from "./memory-backend.js";
+import { ACTIVE_MEMORY_STATUSES } from "./vault.js";
 import { contextPackSummary, loopHistory, loopMemoryDiff, recallLoopMemory, rememberLoopMemory } from "./autopilot-loop-memory.js";
 import { recallEvidenceMemory, rememberEvidenceMemory } from "./evidence-memory.js";
 import { recallAgentTeamReceipts, rememberAgentTeamReceipt } from "./agent-team-receipts.js";
 import { importSkillDirectories, renderSkillExport } from "./skill-export.js";
+import { retrieveAndMergeMemory, retrieveMemory, RETRIEVAL_ROUTE_DEFINITIONS } from "./memory-retrieval.js";
+import { MEMORY_SCHEMA_DEFINITIONS, schemaAwareSummary } from "./memory-schema.js";
+import { forgetProjectedMemory, inspectMemoryProjection, rebuildMemoryProjection } from "./memory-projection.js";
+import { runRetrievalEvaluation } from "./retrieval-eval.js";
+import { approveGovernedMemory, improveMemory, rollbackDistilledMemory } from "./memory-distillation.js";
 
 export function createContextMcpServerDefinition(vault) {
   return {
     name: "across-context",
-    version: "0.8.8",
+    version: "0.9.0",
     resources: [
       {
         uri: "across-context://agent-card",
@@ -65,7 +71,7 @@ export function createContextMcpServerDefinition(vault) {
       {
         uri: "across-context://agent-team-receipts",
         name: "Agent Team Trust Receipts",
-        description: "Pending trust receipts for workflow adoption and promotion reviews.",
+        description: "Approved trust receipts by default; pending receipts require an explicit review request.",
         mimeType: "application/json"
       },
       {
@@ -78,6 +84,30 @@ export function createContextMcpServerDefinition(vault) {
         uri: "across-context://memory-backend",
         name: "Memory Backend Contract",
         description: "Local vault, Mem0, and GraphRAG backend switch contract with redacted-summary policy.",
+        mimeType: "application/json"
+      },
+      {
+        uri: "across-context://memory-schemas",
+        name: "Memory Schema Classification",
+        description: "Derived schema definitions and active-memory classification summary without JSONL migration.",
+        mimeType: "application/json"
+      },
+      {
+        uri: "across-context://retrieval-routes",
+        name: "Memory Retrieval Routes",
+        description: "Explicit local deterministic retrieval route contracts.",
+        mimeType: "application/json"
+      },
+      {
+        uri: "across-context://memory-projection",
+        name: "Memory Projection",
+        description: "Optional graph/hash-vector projection status and privacy policy; JSONL remains authoritative.",
+        mimeType: "application/json"
+      },
+      {
+        uri: "across-context://memory-distillation-policy",
+        name: "Memory Distillation Policy",
+        description: "Governed local improve workflow, provenance, approval, rollback, and forgetting contract.",
         mimeType: "application/json"
       }
     ],
@@ -152,7 +182,16 @@ export function createContextMcpServerDefinition(vault) {
             projectRoot: { type: "string" },
             limit: { type: "number", default: 10 },
             mode: { type: "string", enum: ["keyword", "semantic", "hybrid"], default: "hybrid" },
-            status: { type: "string", enum: ["pending", "active", "pinned", "archived", "expired"] },
+            status: {
+              type: "string",
+              enum: ["pending", "active", "pinned", "archived", "expired"],
+              description: "Omit for active and pinned memory only; pass pending explicitly for review."
+            },
+            reviewPending: {
+              type: "boolean",
+              default: false,
+              description: "Must be true when status is pending."
+            },
             agentPluginId: { type: "string" },
             agent_plugin_id: { type: "string" },
             agentScope: { type: "string", enum: ["prefer", "only", "fallback"], default: "prefer" },
@@ -161,6 +200,9 @@ export function createContextMcpServerDefinition(vault) {
           required: ["query"]
         },
         handler: async (args) => {
+          if (args.status === "pending" && args.reviewPending !== true) {
+            throw new Error("Pending search requires reviewPending=true; use review_pending_memories for the review queue.");
+          }
           const agentPluginId = args.agentPluginId || args.agent_plugin_id;
           const requestedLimit = args.limit || 10;
           const results = await vault.search({
@@ -180,6 +222,148 @@ export function createContextMcpServerDefinition(vault) {
             scopedResults.map((result) => `- ${result.entry.text}`).join("\n") || "No matching context found.",
             { results: scopedResults }
           );
+        }
+      },
+      {
+        name: "retrieve_context",
+        description: "Use an explicit deterministic memory route. Normal retrieval reads active and pinned memory only; pending requires reviewPending=true.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            route: { type: "string", enum: [...RETRIEVAL_ROUTE_DEFINITIONS.map((route) => route.id), "semantic_keyword"] },
+            query: { type: "string" },
+            projectRoot: { type: "string" },
+            includeProjects: { type: "boolean", default: false },
+            limit: { type: "number", default: 10 },
+            status: { type: "string", enum: ["pending", "active", "pinned", "archived", "expired"] },
+            reviewPending: { type: "boolean", default: false }
+          },
+          required: ["route"]
+        },
+        handler: async (args) => {
+          const result = await retrieveMemory(vault, args);
+          return textResult(JSON.stringify(result, null, 2), { result });
+        }
+      },
+      {
+        name: "retrieve_context_merged",
+        description: "Run independent keyword, embedding, evidence graph, project profile, and loop routes, then merge them with explainable weighted reciprocal-rank fusion.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            query: { type: "string" },
+            routes: { type: "array", items: { type: "string", enum: RETRIEVAL_ROUTE_DEFINITIONS.map((route) => route.id) } },
+            projectRoot: { type: "string" },
+            includeProjects: { type: "boolean", default: false },
+            limit: { type: "number", default: 10 },
+            status: { type: "string", enum: ["pending", "active", "pinned", "archived", "expired"] },
+            reviewPending: { type: "boolean", default: false },
+            includeRouteResults: { type: "boolean", default: false }
+          },
+          required: ["query"]
+        },
+        handler: async (args) => {
+          const result = await retrieveAndMergeMemory(vault, args);
+          return textResult(JSON.stringify(result, null, 2), { result });
+        }
+      },
+      {
+        name: "improve_memory",
+        description: "Deduplicate, cluster, merge, and compress session and pending candidates into governed pending permanent-memory proposals.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            projectRoot: { type: "string" },
+            includeProjects: { type: "boolean", default: false },
+            sourceIds: { type: "array", items: { type: "string" } },
+            similarityThreshold: { type: "number", default: 0.34 },
+            maxProposalLength: { type: "number", default: 420 }
+          }
+        },
+        handler: async (args) => {
+          const result = await improveMemory(vault, args);
+          return textResult(JSON.stringify(result, null, 2), { result });
+        }
+      },
+      {
+        name: "rollback_distilled_memory",
+        description: "Archive a distilled memory and restore its source lifecycle states from provenance.",
+        inputSchema: {
+          type: "object",
+          properties: { id: { type: "string" } },
+          required: ["id"]
+        },
+        handler: async (args) => {
+          const result = await rollbackDistilledMemory(vault, args.id);
+          return textResult(JSON.stringify(result, null, 2), { result });
+        }
+      },
+      {
+        name: "get_memory_schema_summary",
+        description: "Classify active and pinned vault records into the Across Context memory schemas without changing JSONL.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            projectRoot: { type: "string" },
+            includeProjects: { type: "boolean", default: false }
+          }
+        },
+        handler: async (args) => {
+          const memories = await vault.listMemories({
+            projectRoot: args.projectRoot,
+            includeGlobal: true,
+            includeProjects: Boolean(args.includeProjects),
+            statuses: ACTIVE_MEMORY_STATUSES
+          });
+          const result = schemaAwareSummary(memories);
+          return textResult(JSON.stringify(result, null, 2), { result });
+        }
+      },
+      {
+        name: "rebuild_memory_projection",
+        description: "Rebuild optional local graph and deterministic hash-vector projections from active/pinned JSONL memory.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            graph: { type: "boolean", default: true },
+            vector: { type: "boolean", default: true },
+            dimensions: { type: "number", default: 48 }
+          }
+        },
+        handler: async (args) => {
+          const result = await rebuildMemoryProjection(vault, args);
+          return textResult(JSON.stringify(result, null, 2), { result });
+        }
+      },
+      {
+        name: "inspect_memory_projection",
+        description: "Inspect optional projection status, counts, source digest, and privacy policy.",
+        inputSchema: { type: "object", properties: {} },
+        handler: async () => {
+          const result = await inspectMemoryProjection(vault);
+          return textResult(JSON.stringify(result, null, 2), { result });
+        }
+      },
+      {
+        name: "forget_projected_memory",
+        description: "Forget a memory in the authoritative JSONL vault and propagate deletion to derived projections.",
+        inputSchema: {
+          type: "object",
+          properties: { id: { type: "string" } },
+          required: ["id"]
+        },
+        handler: async (args) => {
+          const result = await forgetProjectedMemory(vault, args.id);
+          return textResult(JSON.stringify(result, null, 2), { result });
+        }
+      },
+      {
+        name: "run_retrieval_evaluation",
+        description: "Run the bundled deterministic local retrieval evaluation fixtures.",
+        inputSchema: { type: "object", properties: {} },
+        handler: async () => {
+          const result = await runRetrievalEvaluation();
+          return textResult(JSON.stringify(result, null, 2), { result });
         }
       },
       {
@@ -230,8 +414,9 @@ export function createContextMcpServerDefinition(vault) {
           required: ["id"]
         },
         handler: async (args) => {
-          const entry = await vault.updateStatus(args.id, "active");
-          return textResult(`Approved ${entry.id}: ${entry.text}`);
+          const result = await approveGovernedMemory(vault, args.id);
+          const entry = result.proposal_id ? { id: result.proposal_id, text: "distilled memory proposal" } : result;
+          return textResult(`Approved ${entry.id}: ${entry.text}`, { result });
         }
       },
       {
@@ -325,7 +510,11 @@ export function createContextMcpServerDefinition(vault) {
           properties: {
             projectRoot: { type: "string" },
             includeProjects: { type: "boolean", default: true },
-            status: { type: "string", enum: ["pending", "active", "pinned", "archived", "expired"] },
+            status: {
+              type: "string",
+              enum: ["pending", "active", "pinned", "archived", "expired"],
+              description: "Optional lifecycle filter for context-pack counts."
+            },
             agentPluginId: { type: "string" },
             agent_plugin_id: { type: "string" }
           }
@@ -369,7 +558,11 @@ export function createContextMcpServerDefinition(vault) {
             specId: { type: "string" },
             runId: { type: "string" },
             limit: { type: "number", default: 10 },
-            status: { type: "string" }
+            status: {
+              type: "string",
+              enum: ["pending", "active", "pinned", "archived", "expired"],
+              description: "Omit for active and pinned memory only; pass pending explicitly for review."
+            }
           }
         },
         handler: async (args) => {
@@ -404,7 +597,11 @@ export function createContextMcpServerDefinition(vault) {
             specId: { type: "string" },
             runId: { type: "string" },
             limit: { type: "number", default: 10 },
-            status: { type: "string" }
+            status: {
+              type: "string",
+              enum: ["pending", "active", "pinned", "archived", "expired"],
+              description: "Omit for active and pinned memory only; pass pending explicitly for review."
+            }
           }
         },
         handler: async (args) => {
@@ -440,7 +637,11 @@ export function createContextMcpServerDefinition(vault) {
             packId: { type: "string" },
             pack_id: { type: "string" },
             limit: { type: "number", default: 10 },
-            status: { type: "string" }
+            status: {
+              type: "string",
+              enum: ["pending", "active", "pinned", "archived", "expired"],
+              description: "Omit for active and pinned memory only; pass pending explicitly for review."
+            }
           }
         },
         handler: async (args) => {
@@ -455,7 +656,8 @@ export function createContextMcpServerDefinition(vault) {
           type: "object",
           properties: {
             specId: { type: "string" },
-            limit: { type: "number", default: 50 }
+            limit: { type: "number", default: 50 },
+            status: { type: "string", enum: ["pending", "active", "pinned", "archived", "expired"] }
           }
         },
         handler: async (args) => {
@@ -470,7 +672,8 @@ export function createContextMcpServerDefinition(vault) {
           type: "object",
           properties: {
             runIdA: { type: "string" },
-            runIdB: { type: "string" }
+            runIdB: { type: "string" },
+            status: { type: "string", enum: ["pending", "active", "pinned", "archived", "expired"] }
           },
           required: ["runIdA", "runIdB"]
         },
@@ -516,7 +719,7 @@ async function readResource(vault, uri, args = {}) {
     const memories = await vault.listMemories({
       projectRoot: args.projectRoot,
       includeGlobal: true,
-      status: args.status,
+      ...readStatusFilter(args),
       visibility: args.visibility
     });
     return resourceResult(uri, "application/json", JSON.stringify({ memories }, null, 2));
@@ -569,6 +772,44 @@ async function readResource(vault, uri, args = {}) {
   }
   if (uri === "across-context://memory-backend") {
     return resourceResult(uri, "application/json", JSON.stringify(resolveMemoryBackend({ env: vault.env || process.env }), null, 2));
+  }
+  if (uri === "across-context://memory-schemas") {
+    const memories = await vault.listMemories({
+      projectRoot: args.projectRoot,
+      includeGlobal: true,
+      includeProjects: Boolean(args.includeProjects),
+      statuses: ACTIVE_MEMORY_STATUSES
+    });
+    return resourceResult(uri, "application/json", JSON.stringify({
+      definitions: MEMORY_SCHEMA_DEFINITIONS,
+      summary: schemaAwareSummary(memories)
+    }, null, 2));
+  }
+  if (uri === "across-context://retrieval-routes") {
+    return resourceResult(uri, "application/json", JSON.stringify({
+      schema_version: "across-context-retrieval-routes/1.0",
+      routes: RETRIEVAL_ROUTE_DEFINITIONS
+    }, null, 2));
+  }
+  if (uri === "across-context://memory-projection") {
+    return resourceResult(uri, "application/json", JSON.stringify(await inspectMemoryProjection(vault), null, 2));
+  }
+  if (uri === "across-context://memory-distillation-policy") {
+    return resourceResult(uri, "application/json", JSON.stringify({
+      schema_version: "across-context-memory-distillation-policy/1.0",
+      source_types: ["session", "pending candidates"],
+      output_schema: "across-context-distilled-memory-proposal/1.0",
+      default_status: "pending",
+      approval_required: true,
+      rollback_supported: true,
+      forgetting_propagates: true,
+      provenance_required: true,
+      secret_policy: "reject source",
+      path_policy: "redact",
+      transcript_policy: "redact",
+      local_only: true,
+      deterministic: true
+    }, null, 2));
   }
   throw new Error(`Unknown resource: ${uri}`);
 }
@@ -623,6 +864,12 @@ function resourceResult(uri, mimeType, text) {
       }
     ]
   };
+}
+
+function readStatusFilter(args = {}) {
+  return args.status !== undefined && String(args.status).trim() !== ""
+    ? { status: args.status }
+    : { statuses: ACTIVE_MEMORY_STATUSES };
 }
 
 function promptResult(name, description, text) {

@@ -211,6 +211,7 @@ test("ContextVault archives and exports team-safe project memories", async () =>
   const exported = await vault.exportTeamMemory({ projectRoot });
 
   assert.equal(archived.status, "archived");
+  assert.equal(exported.memories.length, 0);
   assert.ok(exported.memories.every((memory) => memory.visibility === "team"));
   assert.doesNotMatch(JSON.stringify(exported), new RegExp(projectRoot.replaceAll("/", "\\/")));
 });

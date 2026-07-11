@@ -172,6 +172,8 @@ test("CLI stores and recalls compact evidence graph memory", async () => {
     "recall-evidence",
     "--run-id",
     "run-cli",
+    "--status",
+    "pending",
     "--json"
   ], { env })).stdout);
 
@@ -214,10 +216,56 @@ test("CLI stores and recalls agent-team trust receipts", async () => {
     "recall-agent-team-receipts",
     "--pack-id",
     "plugin-compatibility-lab-v2",
+    "--status",
+    "pending",
     "--json"
   ], { env })).stdout);
 
   assert.equal(remembered.schema_version, "across-agent-team-receipt-memory/1.0");
   assert.equal(recalled.result_count, 1);
   assert.equal(recalled.results[0].headline, "Test an agent plugin before adoption.");
+});
+
+test("CLI exposes schema retrieval projection and evaluation commands", async () => {
+  const home = await mkdtemp(join(tmpdir(), "across-context-cli-vnext-memory-"));
+  const env = { ...process.env, ACROSS_CONTEXT_HOME: home };
+  const created = JSON.parse((await exec("node", [
+    cli,
+    "remember",
+    "Run npm check for release readiness.",
+    "--type",
+    "command",
+    "--json"
+  ], { env })).stdout).memory;
+  await exec("node", [cli, "remember", "Pending release speculation.", "--status", "pending"], { env });
+
+  const schemas = JSON.parse((await exec("node", [cli, "memory-schemas", "--json"], { env })).stdout);
+  const listed = JSON.parse((await exec("node", [cli, "list", "--json"], { env })).stdout);
+  const retrieval = JSON.parse((await exec("node", [cli, "retrieve", "release readiness", "--route", "keyword", "--json"], { env })).stdout);
+  const merged = JSON.parse((await exec("node", [cli, "retrieve", "release readiness", "--routes", "keyword,embedding,evidence_graph,project_profile,loop_recall", "--json"], { env })).stdout);
+  const improved = JSON.parse((await exec("node", [cli, "improve", "run", "--json"], { env })).stdout);
+  const rebuilt = JSON.parse((await exec("node", [cli, "projection", "rebuild", "--json"], { env })).stdout);
+  const inspected = JSON.parse((await exec("node", [cli, "projection", "inspect", "--json"], { env })).stdout);
+  const evaluated = JSON.parse((await exec("node", [cli, "retrieval-eval", "--json"], { env })).stdout);
+
+  assert.equal(schemas.by_schema.command, 1);
+  assert.deepEqual(listed.map((entry) => entry.status), ["active"]);
+  assert.equal(retrieval.result_count, 1);
+  assert.equal(retrieval.results[0].entry.status, "active");
+  assert.equal(merged.strategy, "weighted-reciprocal-rank-fusion");
+  assert.equal(improved.proposal_count, 1);
+  assert.equal(improved.proposals[0].memory.status, "pending");
+  assert.equal(rebuilt.included_record_count, 1);
+  assert.equal(inspected.status, "ready");
+  assert.equal(evaluated.passed, true);
+
+  await assert.rejects(
+    () => exec("node", [cli, "search", "release", "--status", "pending"], { env }),
+    /Pending search requires --review-pending/
+  );
+  const reviewed = await exec("node", [cli, "search", "release", "--status", "pending", "--review-pending"], { env });
+  assert.match(reviewed.stdout, /Pending release speculation/);
+
+  const forgotten = JSON.parse((await exec("node", [cli, "projection", "forget", created.id, "--json"], { env })).stdout);
+  assert.equal(forgotten.authoritative_forgotten, 1);
 });
