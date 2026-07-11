@@ -6,12 +6,16 @@ export async function renderAgentCard(vault) {
   const memoryBackend = resolveMemoryBackend({ env: vault?.env || process.env });
   return {
     name: "Across Context",
-    version: "0.8.8",
+    version: "0.9.0",
     description: "Local-first shared memory provider for coding agents.",
     url: "https://github.com/fantasyce/across-context",
     capabilities: {
       memory: true,
       semanticSearch: true,
+      fiveRouteRetrieval: true,
+      explainableRetrievalFusion: true,
+      governedMemoryDistillation: true,
+      optionalEmbeddingAdapter: true,
       pendingApproval: true,
       agentLoopMemoryHooks: true,
       agentLoopMemoryHooksV2: true,
@@ -67,6 +71,9 @@ export async function renderAgentCard(vault) {
       types: ["preference", "decision", "note", "command", "session"],
       scopes: ["global", "project"],
       retrievalModes: ["keyword", "semantic", "hybrid"],
+      retrievalRoutes: ["keyword", "embedding", "evidence_graph", "project_profile", "loop_recall"],
+      mergeStrategy: "weighted-reciprocal-rank-fusion",
+      distillationProposalSchema: "across-context-distilled-memory-proposal/1.0",
       loopHooks: loopMemoryPolicy.hooks.map((hook) => hook.id),
       evidenceGraphSchema: "across-evidence-graph/1.0",
       agentTeamReceiptSchema: "across-agent-team-receipt-memory/1.0",

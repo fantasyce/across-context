@@ -4,14 +4,14 @@
   "name": "Across Context",
   "category": "memory and policy layer",
   "tagline": "Local memory for coding agents with policy and pending review.",
-  "summary": "Across Context gives coding agents one local memory surface with search, write policy, pending review, context packs, MCP tools, and loop memory summaries.",
+  "summary": "Across Context gives coding agents one local memory surface with governed active recall, pending-first distillation, five-route retrieval, optional local projections, MCP tools, and loop evidence.",
   "part_of": "Across",
   "repository": "fantasyce/across-context",
   "current_release": {
-    "version": "v0.8.8",
-    "published_at": "2026-06-29",
-    "tag": "v0.8.8",
-    "release_url": "https://github.com/fantasyce/across-context/releases/tag/v0.8.8"
+    "version": "v0.9.0",
+    "published_at": "2026-07-11",
+    "tag": "v0.9.0",
+    "release_url": "https://github.com/fantasyce/across-context/releases/tag/v0.9.0"
   },
   "role": "local memory provider",
   "hosts": [
@@ -30,6 +30,13 @@
     "context packs",
     "MCP memory tools",
     "loop memory summaries",
+    "schema-aware memory retrieval routes",
+    "deterministic local retrieval evaluation",
+    "governed session and pending-candidate distillation",
+    "explicit approval and rollback for permanent-memory proposals",
+    "explainable five-route merge and rerank",
+    "optional provider embedding adapter with local fallback",
+    "optional local graph and hash-vector projections",
     "agentskills.io bridge",
     "optional mem0/graphrag backend projections",
     "A2A-compatible trust receipt memory"

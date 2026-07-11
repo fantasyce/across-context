@@ -67,6 +67,32 @@ Use it when you want agents to remember:
 - Protects the vault with a memory policy engine
 - Provides a local dashboard, explainable hybrid search, pending approval, lifecycle controls, MCP resources and prompts, team export, and deterministic hooks
 
+### Governed Improve And Five-Route Retrieval
+
+`across-context improve run` turns session summaries and pending candidates into
+deduplicated, schema-clustered, compressed permanent-memory proposals. Proposals
+remain `pending` until explicit approval. Approval archives superseded source
+candidates, rollback restores their prior lifecycle states, and forgetting a
+source propagates to derived proposals and projections. Provenance digests are
+retained while secrets are rejected and paths, transcripts, and hidden reasoning
+are redacted.
+
+Retrieval has five independent routes: `keyword`, `embedding`,
+`evidence_graph`, `project_profile`, and `loop_recall`. Hosts can run one route
+or merge all routes with explainable weighted reciprocal-rank fusion. Embeddings
+use deterministic local hash vectors by default. A host may inject a provider
+adapter through the JavaScript API; adapter failure falls back locally, and the
+core never performs network requests itself.
+
+### New in v0.9.0: Governed Distillation And Five-Route Retrieval
+
+- Adds deterministic `improve`, approval, rollback, and forgetting propagation
+  for compact memory proposals with source provenance.
+- Adds independent keyword, embedding, evidence-graph, project-profile, and
+  loop-recall routes merged through explainable weighted reciprocal-rank fusion.
+- Keeps JSONL as source of truth, projections derived and rebuildable, pending
+  memory review-only by default, and embeddings local unless a host injects an adapter.
+
 ### New in v0.8.8: Skills Bridge And Memory Backend Projections
 
 - Exports Across Context agent cards and native skills as agentskills.io
@@ -273,7 +299,7 @@ operating instructions, and automatic memory needs guardrails.
 
 ### Install
 
-The current open-source distribution is GitHub-first. The `v0.8.8` tag and
+The current open-source distribution is GitHub-first. The `v0.9.0` tag and
 GitHub source archives are the canonical release artifacts; no extra npm
 tarball asset is attached to the GitHub Release, and npm registry publication is
 not required for hosts to install or run the plugin.
@@ -290,7 +316,7 @@ Or build and install a local npm tarball from the checked-out release tag:
 
 ```bash
 npm pack
-npm install -g ./across-context-0.8.8.tgz
+npm install -g ./across-context-0.9.0.tgz
 ```
 
 Verify:
@@ -442,12 +468,23 @@ Allowed memory types:
 Controlled writes:
 
 - secret-like content is rejected
+- absolute local paths, raw transcripts, and hidden-reasoning fields are redacted by the generic memory policy
 - duplicate memories return the existing record instead of appending another line
 - long memories are trimmed to a safe default length
 - low-confidence automatic notes and session summaries are stored as `pending`
 - approved memories become `active`; stale memories can be `archived` or `expired`
 - `compact` removes duplicates already on disk
 - `forget <id>` removes a memory by id
+
+Normal search, recall, context packs, MCP memory resources, and generated agent
+context load only `active` and `pinned` records. Pending records are available
+only through the pending review queue or an explicit pending-review request.
+
+Existing JSONL records are classified at read time as project conventions,
+decisions, commands, failure patterns, loop evidence, release evidence, or trust
+receipts. Optional graph and deterministic hash-vector projections are derived
+local state; they require no model provider or network and never replace the
+JSONL vault as the authority.
 
 ### CLI Reference
 
@@ -461,6 +498,14 @@ across-context remember "Run npm test before final answers." --scope project --p
 across-context search "tests before final" --project .
 across-context search "agent handoff context" --mode semantic --project .
 across-context search "release verification" --mode hybrid --json --explain
+across-context retrieve "release verification" --route evidence_graph --json
+across-context retrieve "release verification" --routes keyword,embedding,evidence_graph,project_profile,loop_recall --json
+across-context improve run --all-projects --json
+across-context improve rollback <proposal-id> --json
+across-context memory-schemas --all-projects --json
+across-context projection rebuild --json
+across-context projection inspect --json
+across-context retrieval-eval --json
 across-context list
 across-context pending
 across-context pending --all-projects --json
@@ -491,6 +536,10 @@ The MCP server exposes tools:
 
 - `remember_context`
 - `search_context`
+- `retrieve_context`
+- `retrieve_context_merged`
+- `improve_memory`
+- `rollback_distilled_memory`
 - `review_pending_memories`
 - `approve_memory`
 - `get_project_context`
@@ -498,6 +547,11 @@ The MCP server exposes tools:
 - `export_agent_instructions`
 - `get_agent_loop_memory_policy`
 - `get_agent_loop_memory_metrics`
+- `get_memory_schema_summary`
+- `rebuild_memory_projection`
+- `inspect_memory_projection`
+- `forget_projected_memory`
+- `run_retrieval_evaluation`
 
 It also exposes resources:
 
@@ -507,6 +561,10 @@ It also exposes resources:
 - `across-context://project-context`
 - `across-context://agent-loop-memory-policy`
 - `across-context://agent-loop-memory-metrics`
+- `across-context://memory-schemas`
+- `across-context://retrieval-routes`
+- `across-context://memory-projection`
+- `across-context://memory-distillation-policy`
 
 And prompts:
 
@@ -531,6 +589,9 @@ across-context mcp
     <project-id>/
       profile.json
       memories.jsonl
+  projections/
+    memory-projection.config.json
+    memory-projection.json
 ```
 
 For isolated tests:
@@ -544,6 +605,8 @@ ACROSS_CONTEXT_HOME=/tmp/across-context-demo across-context init
 - The vault is local-first.
 - This package does not sync memory to a hosted service.
 - Public exports never include absolute project paths.
+- Derived projections index active/pinned memory only by default and apply the
+  same secret, local-path, raw-transcript, and hidden-reasoning policy.
 - Host-plugin manifests, wrappers, and status output should not embed
   development checkout paths.
 - Generated files should be reviewed before committing.
@@ -607,6 +670,14 @@ across-context setup --all --yes
 - 生成 `CLAUDE.md`
 - 生成 Cursor MCP 配置和规则
 - 注入自动读写记忆的行为规则
+
+### v0.9.0 新能力
+
+- 增加确定性的记忆整理、显式批准、回滚与遗忘传播，并保留来源证明。
+- 增加关键词、嵌入、证据图、项目画像和循环召回五条独立检索路线，
+  通过可解释的加权倒数排名融合结果。
+- JSONL 继续作为事实源，投影可重建，待审记忆默认不可普通召回，
+  嵌入默认在本地完成，只有宿主显式注入适配器时才使用外部能力。
 
 ### v0.8.8 新能力
 
@@ -829,6 +900,13 @@ loop 前搜索、step 上下文附加、loop 后 pending 摘要写入。自动�
 `across-context loop-memory-metrics --all-projects --json` 或对应的 MCP
 tool/resource。指标只报告生命周期计数和 status/scope 分布，不暴露原始记忆文本。
 
+`across-context improve run` 会把 session 和 pending candidates 进行确定性
+去重、按 schema 聚类、合并和压缩，生成受治理的永久记忆提案。提案默认仍为
+`pending`；显式审批后才会激活并归档被替代的来源，`improve rollback` 可以恢复
+来源状态。来源删除会传播到提案和派生投影。五条独立检索路由为 `keyword`、
+`embedding`、`evidence_graph`、`project_profile`、`loop_recall`，也可以通过
+可解释的加权 reciprocal-rank fusion 统一合并。
+
 支持的记忆类型：
 
 - `preference`：长期用户偏好
@@ -859,6 +937,10 @@ across-context remember "Run npm test before final answers." --scope project --p
 across-context search "tests before final" --project .
 across-context search "agent handoff context" --mode semantic --project .
 across-context search "release verification" --mode hybrid --json --explain
+across-context retrieve "release verification" --route embedding --json
+across-context retrieve "release verification" --routes keyword,embedding,evidence_graph,project_profile,loop_recall --json
+across-context improve run --all-projects --json
+across-context improve rollback <proposal-id> --json
 across-context list
 across-context pending
 across-context pending --all-projects --json
@@ -889,6 +971,10 @@ MCP Server 暴露工具：
 
 - `remember_context`
 - `search_context`
+- `retrieve_context`
+- `retrieve_context_merged`
+- `improve_memory`
+- `rollback_distilled_memory`
 - `review_pending_memories`
 - `approve_memory`
 - `get_project_context`
@@ -905,6 +991,10 @@ MCP Server 暴露工具：
 - `across-context://project-context`
 - `across-context://agent-loop-memory-policy`
 - `across-context://agent-loop-memory-metrics`
+- `across-context://memory-schemas`
+- `across-context://retrieval-routes`
+- `across-context://memory-projection`
+- `across-context://memory-distillation-policy`
 
 以及 prompts：
 

@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { enforceLoopMemoryPolicy } from "./autopilot-loop-memory.js";
+import { ACTIVE_MEMORY_STATUSES } from "./vault.js";
 
 export const EVIDENCE_MEMORY_SCHEMA = "across-evidence-memory/1.0";
 export const EVIDENCE_RECALL_SCHEMA = "across-context-evidence-recall/1.0";
@@ -56,7 +57,7 @@ export async function recallEvidenceMemory(vault, options = {}) {
   const memories = await vault.listMemories({
     includeGlobal: true,
     includeProjects: true,
-    status: options.status
+    ...recallStatusFilter(options)
   });
   const parsed = memories
     .map((entry) => ({ entry, payload: parseEvidenceMemory(entry.text) }))
@@ -177,6 +178,12 @@ function sha256(text) {
 
 function stableJson(value) {
   return JSON.stringify(sortJson(value));
+}
+
+function recallStatusFilter(options = {}) {
+  return options.status !== undefined && String(options.status).trim() !== ""
+    ? { status: options.status }
+    : { statuses: ACTIVE_MEMORY_STATUSES };
 }
 
 function sortJson(value) {

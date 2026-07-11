@@ -39,13 +39,18 @@ test("agent-team trust receipts are stored as pending team-visible memory", asyn
     },
     protocol_readiness: { summary: { score: 75, honest_protocol_claims: true } }
   });
-  const recalled = await recallAgentTeamReceipts(vault, { packId: "plugin-compatibility-lab-v2" });
+  const ordinaryRecall = await recallAgentTeamReceipts(vault, { packId: "plugin-compatibility-lab-v2" });
+  const recalled = await recallAgentTeamReceipts(vault, {
+    packId: "plugin-compatibility-lab-v2",
+    status: "pending"
+  });
 
   assert.equal(remembered.schema_version, "across-agent-team-receipt-memory/1.0");
   assert.equal(remembered.status, "accepted_pending");
   assert.equal(remembered.memory.visibility, "team");
   assert.equal(remembered.memory.policy.trimmed, false);
   assert.ok(remembered.memory.text.length < 1200);
+  assert.equal(ordinaryRecall.result_count, 0);
   assert.equal(recalled.schema_version, "across-context-agent-team-receipt-recall/1.0");
   assert.equal(recalled.result_count, 1);
   assert.equal(recalled.results[0].headline, "Test an agent plugin before adoption.");
@@ -103,7 +108,10 @@ test("agent-team trust receipts stay parseable when Lab v2 metadata is rich", as
     },
     protocol_readiness: { summary: receipt.protocol_summary }
   });
-  const recalled = await recallAgentTeamReceipts(vault, { packId: "plugin-compatibility-lab-v2" });
+  const recalled = await recallAgentTeamReceipts(vault, {
+    packId: "plugin-compatibility-lab-v2",
+    status: "pending"
+  });
 
   assert.equal(remembered.memory.policy.trimmed, false);
   assert.equal(recalled.result_count, 1);

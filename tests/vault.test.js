@@ -153,3 +153,38 @@ test("ContextVault searches project and global memories by relevance", async () 
   assert.match(results[0].entry.text, /release gate/);
   assert.ok(results[0].score > 0);
 });
+
+test("ContextVault search defaults to active and pinned memories", async () => {
+  const vault = await tempVault();
+  await vault.remember({
+    scope: "global",
+    type: "note",
+    text: "Release pending memory should stay out of ordinary search.",
+    status: "pending"
+  });
+  await vault.remember({
+    scope: "global",
+    type: "note",
+    text: "Release active memory should be searchable.",
+    status: "active"
+  });
+  await vault.remember({
+    scope: "global",
+    type: "note",
+    text: "Release pinned memory should be searchable.",
+    status: "pinned"
+  });
+
+  const ordinary = await vault.search({
+    query: "release memory",
+    includeGlobal: true
+  });
+  const pending = await vault.search({
+    query: "release memory",
+    includeGlobal: true,
+    status: "pending"
+  });
+
+  assert.deepEqual(ordinary.map((result) => result.entry.status).sort(), ["active", "pinned"]);
+  assert.deepEqual(pending.map((result) => result.entry.status), ["pending"]);
+});

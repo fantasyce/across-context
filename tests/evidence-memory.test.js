@@ -26,11 +26,13 @@ test("evidence memory stores compact graph as pending review", async () => {
     graph,
     summary: "Codex and Claude host export evidence"
   });
-  const recalled = await recallEvidenceMemory(vault, { specId: "plugin-compatibility-lab-v2" });
+  const ordinaryRecall = await recallEvidenceMemory(vault, { specId: "plugin-compatibility-lab-v2" });
+  const recalled = await recallEvidenceMemory(vault, { specId: "plugin-compatibility-lab-v2", status: "pending" });
 
   assert.equal(remembered.schema_version, "across-evidence-memory/1.0");
   assert.equal(remembered.status, "accepted_pending");
   assert.equal(remembered.memory.status, "pending");
+  assert.equal(ordinaryRecall.result_count, 0);
   assert.equal(recalled.schema_version, "across-context-evidence-recall/1.0");
   assert.equal(recalled.result_count, 1);
   assert.equal(recalled.results[0].summary, "Codex and Claude host export evidence");
@@ -75,7 +77,7 @@ test("evidence memory remains parseable when graph topology is large", async () 
   };
 
   const remembered = await rememberEvidenceMemory(vault, { graph, summary: "Large host interop evidence graph" });
-  const recalled = await recallEvidenceMemory(vault, { runId: "run-large" });
+  const recalled = await recallEvidenceMemory(vault, { runId: "run-large", status: "pending" });
 
   assert.equal(remembered.status, "accepted_pending");
   assert.equal(remembered.memory.policy.trimmed, false);

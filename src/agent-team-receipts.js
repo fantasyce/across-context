@@ -1,3 +1,5 @@
+import { ACTIVE_MEMORY_STATUSES } from "./vault.js";
+
 export const AGENT_TEAM_RECEIPT_MEMORY_SCHEMA = "across-agent-team-receipt-memory/1.0";
 export const AGENT_TEAM_RECEIPT_RECALL_SCHEMA = "across-context-agent-team-receipt-recall/1.0";
 
@@ -46,7 +48,7 @@ export async function recallAgentTeamReceipts(vault, options = {}) {
   const memories = await vault.listMemories({
     includeGlobal: true,
     includeProjects: true,
-    status: options.status
+    ...recallStatusFilter(options)
   });
   const parsed = memories
     .map((entry) => ({ entry, payload: parseReceiptMemory(entry.text) }))
@@ -208,6 +210,12 @@ function optionalObject(value) {
 
 function stableJson(value) {
   return JSON.stringify(sortJson(value));
+}
+
+function recallStatusFilter(options = {}) {
+  return options.status !== undefined && String(options.status).trim() !== ""
+    ? { status: options.status }
+    : { statuses: ACTIVE_MEMORY_STATUSES };
 }
 
 function sortJson(value) {

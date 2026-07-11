@@ -37,6 +37,10 @@ export async function renderPluginManifest(options = {}) {
     capabilities: {
       memory: true,
       semanticSearch: true,
+      fiveRouteRetrieval: true,
+      explainableRetrievalFusion: true,
+      governedMemoryDistillation: true,
+      optionalEmbeddingAdapter: true,
       pendingApproval: true,
       agentLoopMemoryHooks: true,
       agentLoopMemoryHooksV2: true,
@@ -136,6 +140,10 @@ export async function renderPluginManifest(options = {}) {
       memoryBackend: {
         command: manifestCommandPath,
         args: ["memory-backend", "--json"]
+      },
+      improveMemory: {
+        command: manifestCommandPath,
+        args: ["improve", "run", "--json"]
       }
     },
     protocols: {
@@ -143,7 +151,11 @@ export async function renderPluginManifest(options = {}) {
         transport: "stdio",
         tools: {
           searchContext: "search_context",
+          retrieveContext: "retrieve_context",
+          retrieveContextMerged: "retrieve_context_merged",
           rememberContext: "remember_context",
+          improveMemory: "improve_memory",
+          rollbackDistilledMemory: "rollback_distilled_memory",
           getAgentLoopMemoryPolicy: "get_agent_loop_memory_policy",
           rememberEvidenceMemory: "remember_evidence_memory",
           recallEvidenceMemory: "recall_evidence_memory",

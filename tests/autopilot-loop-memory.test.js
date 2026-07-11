@@ -31,15 +31,30 @@ test("loop memory recall distinguishes accepted and redacted pending memory", as
     runId: "run-2",
     text: `path ${privatePath}`
   });
-  const recalled = await recallLoopMemory(vault, { specId: "daily-news-brief" });
-  const history = await loopHistory(vault);
+  const transcriptRedacted = await rememberLoopMemory(vault, {
+    specId: "daily-news-brief",
+    runId: "run-3",
+    text: "Raw transcript: private message history"
+  });
+  const ordinary = await recallLoopMemory(vault, { specId: "daily-news-brief" });
+  const recalled = await recallLoopMemory(vault, { specId: "daily-news-brief", status: "pending" });
+  const history = await loopHistory(vault, { status: "pending" });
 
   assert.equal(accepted.status, "accepted_pending");
   assert.equal(redacted.status, "redacted_pending");
-  assert.equal(recalled.result_count, 2);
+  assert.equal(ordinary.result_count, 0);
+  assert.equal(recalled.result_count, 3);
   assert.equal(recalled.results.find((item) => item.run_id === "run-1").summary.model_decision.provider, "minimax");
   assert.equal(history.specs[0].redacted_count, 1);
   assert.equal(JSON.stringify(recalled).includes(privatePathPrefix), false);
+  assert.equal(transcriptRedacted.memory.policy.rawTranscriptRedacted, true);
+  assert.doesNotMatch(JSON.stringify(recalled), /private message history/);
+  assert.match(JSON.stringify(recalled), /REDACTED_RAW_TRANSCRIPT/);
+
+  await vault.updateStatus(accepted.memory.id, "pinned");
+  const approvedRecall = await recallLoopMemory(vault, { specId: "daily-news-brief" });
+  assert.equal(approvedRecall.result_count, 1);
+  assert.equal(approvedRecall.results[0].status, "pinned");
 });
 
 test("MCP exposes loop memory tools without duplicate writes", async () => {
@@ -53,7 +68,7 @@ test("MCP exposes loop memory tools without duplicate writes", async () => {
     runId: "run-1",
     text: "plugin radar summary"
   });
-  const recalled = await recallLoopMemory(vault, { specId: "github-plugin-radar" });
+  const recalled = await recallLoopMemory(vault, { specId: "github-plugin-radar", status: "pending" });
 
   assert.match(response.content[0].text, /accepted_pending/);
   assert.equal(recalled.result_count, 1);
@@ -69,15 +84,20 @@ test("context pack summary groups memory by scope type and status", async () => 
   await vault.remember({ text: "project decision", scope: "project", type: "decision", status: "pending", projectRoot });
 
   const summary = await contextPackSummary(vault);
+  const pendingReview = await contextPackSummary(vault, { status: "pending" });
 
   assert.equal(summary.schema_version, "across-context-pack-summary/1.0");
   assert.equal(summary.provider, "across-context");
-  assert.equal(summary.status, "attention");
-  assert.equal(summary.summary.memory_count, 3);
-  assert.equal(summary.summary.pending_count, 2);
-  assert.equal(summary.summary.context_pack_count, 3);
-  assert.ok(summary.packs.find((pack) => pack.id === "global:note:pending"));
-  assert.ok(summary.packs.find((pack) => pack.id === "project:decision:pending"));
+  assert.equal(summary.status, "passed");
+  assert.equal(summary.summary.memory_count, 1);
+  assert.equal(summary.summary.pending_count, 0);
+  assert.equal(summary.summary.context_pack_count, 1);
+  assert.equal(summary.packs.some((pack) => pack.status === "pending"), false);
+  assert.equal(pendingReview.review_mode, true);
+  assert.equal(pendingReview.status, "attention");
+  assert.equal(pendingReview.summary.memory_count, 2);
+  assert.ok(pendingReview.packs.find((pack) => pack.id === "global:note:pending"));
+  assert.ok(pendingReview.packs.find((pack) => pack.id === "project:decision:pending"));
 });
 
 test("context pack summary filters generic agent plugin memory packs", async () => {
@@ -95,11 +115,15 @@ test("context pack summary filters generic agent plugin memory packs", async () 
 
   const summary = await contextPackSummary(vault, { agentPluginId: "demo.echo-agent" });
 
-  assert.equal(summary.summary.memory_count, 2);
+  assert.equal(summary.summary.memory_count, 1);
   assert.equal(summary.summary.agent_plugin_count, 1);
   assert.equal(summary.summary.filtered_agent_plugin_id, "demo.echo-agent");
   assert.ok(summary.packs.every((pack) => pack.agent_plugin_id === "demo.echo-agent"));
   assert.ok(summary.packs.find((pack) => pack.id === "demo.echo-agent:global:note:active"));
+
+  const pendingReview = await contextPackSummary(vault, { agentPluginId: "demo.echo-agent", status: "pending" });
+  assert.equal(pendingReview.summary.memory_count, 1);
+  assert.equal(pendingReview.packs[0].status, "pending");
 });
 
 test("context pack summary returns virtual empty pack for a new generic agent plugin", async () => {
