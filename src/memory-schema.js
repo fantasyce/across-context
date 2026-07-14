@@ -1,3 +1,5 @@
+import { compactTrustSummary, MEMORY_PROVENANCE_SCHEMA } from "./memory-provenance.js";
+
 export const MEMORY_SCHEMA_VERSION = "across-context-memory-schema/1.0";
 
 export const MEMORY_SCHEMAS = Object.freeze({
@@ -100,6 +102,8 @@ export function schemaAwareSummary(entries = []) {
     definitions: MEMORY_SCHEMA_DEFINITIONS,
     memory_count: memories.length,
     by_schema: bySchema,
+    provenance_schema: MEMORY_PROVENANCE_SCHEMA,
+    trust_summary: compactTrustSummary(entries),
     memories
   };
 }

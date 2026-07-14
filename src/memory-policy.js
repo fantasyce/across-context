@@ -1,3 +1,5 @@
+import { isMemoryExpired, normalizeMemoryProvenance, quarantineAssessment } from "./memory-provenance.js";
+
 const DEFAULT_MAX_TEXT_LENGTH = 1200;
 export const LOCAL_PATH_REDACTION = "[REDACTED_LOCAL_PATH]";
 export const RAW_TRANSCRIPT_REDACTION = "[REDACTED_RAW_TRANSCRIPT]";
@@ -77,14 +79,24 @@ export class MemoryPolicyEngine {
       ? Math.max(this.maxTextLength, 8192)
       : this.maxTextLength;
     const trimmed = trimToLimit(policyText, maxTextLength);
-    const status = defaultStatus(input);
+    const provenance = normalizeMemoryProvenance(input, trimmed.text, input.observedAt || new Date().toISOString());
+    const quarantineReasons = quarantineAssessment(input, text, provenance);
+    const status = quarantineReasons.length
+      ? "quarantined"
+      : isMemoryExpired({ provenance })
+        ? "expired"
+        : provenance.trust_level === "trusted"
+          ? defaultStatus(input)
+          : "pending";
     return {
-      status: "allow",
-      reason: sanitized.redactionCount + tags.redactionCount
-        ? "Restricted durable-memory content was redacted."
-        : trimmed.didTrim
-          ? "Memory was trimmed to the configured length limit."
-          : "Memory passed policy.",
+      status: quarantineReasons.length ? "quarantine" : "allow",
+      reason: quarantineReasons.length
+        ? `Memory quarantined: ${quarantineReasons.join(", ")}.`
+        : sanitized.redactionCount + tags.redactionCount
+          ? "Restricted durable-memory content was redacted."
+          : trimmed.didTrim
+            ? "Memory was trimmed to the configured length limit."
+            : "Memory passed policy.",
       text: trimmed.text,
       trimmed: trimmed.didTrim,
       redactions: sanitized.redactionCount + tags.redactionCount,
@@ -93,9 +105,16 @@ export class MemoryPolicyEngine {
       hiddenReasoningRedacted: sanitized.hiddenReasoningRedactions > 0,
       tags: tags.values,
       tagRedactions: tags.redactionCount,
-      memoryStatus: status
+      memoryStatus: status,
+      provenance: stripInternalProvenance(provenance),
+      quarantineReasons
     };
   }
+}
+
+function stripInternalProvenance(provenance) {
+  const { hash_matches, ...record } = provenance;
+  return record;
 }
 
 export function normalizeMemoryText(text) {

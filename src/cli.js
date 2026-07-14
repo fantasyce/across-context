@@ -48,7 +48,13 @@ async function main(argv) {
       source: "cli",
       auto: Boolean(parsed.auto),
       status: parsed.status,
-      visibility: parsed.visibility
+      visibility: parsed.visibility,
+      source_type: parsed["source-type"],
+      source_id: parsed["source-id"],
+      trust_level: parsed["trust-level"],
+      evidence_hash: parsed["evidence-hash"],
+      observed_at: parsed["observed-at"],
+      expires_at: parsed["expires-at"]
     });
     if (parsed.json) {
       console.log(JSON.stringify({ memory: entry }, null, 2));
@@ -63,6 +69,9 @@ async function main(argv) {
     if (parsed.status === "pending" && !parsed["review-pending"]) {
       throw new Error("Pending search requires --review-pending; use `pending` for the review queue.");
     }
+    if (parsed.status === "quarantined" && !parsed["review-quarantined"]) {
+      throw new Error("Quarantined search requires --review-quarantined; use `quarantine` for the review queue.");
+    }
     const query = parsed.positionals.join(" ").trim();
     const results = await vault.search({
       query,
@@ -70,7 +79,8 @@ async function main(argv) {
       limit: Number(parsed.limit || 20),
       includeGlobal: true,
       mode: parsed.mode || "keyword",
-      status: parsed.status
+      status: parsed.status,
+      reviewQuarantined: Boolean(parsed["review-quarantined"])
     });
     if (parsed.json) {
       console.log(JSON.stringify({
@@ -98,6 +108,7 @@ async function main(argv) {
       limit: parsed.limit,
       status: parsed.status,
       reviewPending: Boolean(parsed["review-pending"]),
+      reviewQuarantined: Boolean(parsed["review-quarantined"]),
       allowEmptyQuery: Boolean(parsed["allow-empty-query"]),
       includeRouteResults: Boolean(parsed["include-route-results"])
     };
@@ -197,6 +208,28 @@ async function main(argv) {
     for (const entry of memories) {
       console.log(`${entry.id} [${entry.scope}/${entry.type}] ${entry.text}`);
     }
+    return;
+  }
+
+  if (command === "quarantine") {
+    const parsed = parseArgs(rest);
+    const memories = await vault.listMemories({
+      projectRoot: parsed.project,
+      includeGlobal: true,
+      includeProjects: Boolean(parsed["all-projects"]),
+      status: "quarantined"
+    });
+    console.log(parsed.json ? JSON.stringify(memories, null, 2) : memories.map((entry) => `${entry.id} [${entry.policy?.quarantineReasons?.join(",") || "quarantined"}] ${entry.text}`).join("\n") || "No quarantined memories.");
+    return;
+  }
+
+  if (command === "trust-summary") {
+    const parsed = parseArgs(rest);
+    const summary = await vault.trustSummary({
+      projectRoot: parsed.project,
+      includeProjects: Boolean(parsed["all-projects"])
+    });
+    console.log(JSON.stringify(summary, null, 2));
     return;
   }
 
@@ -659,7 +692,7 @@ function printHelp() {
 
 Commands:
   init                                  Create the local context vault
-  remember <text> [--scope global|project] [--type preference|decision|note|command|session] [--status pending|active|pinned] [--project path] [--json]
+  remember <text> [--scope global|project] [--type preference|decision|note|command|session] [--status pending|active|pinned] [--source-type type] [--source-id id] [--trust-level trusted|review|untrusted] [--observed-at ISO] [--expires-at ISO] [--project path] [--json]
   search <query> [--project path] [--mode keyword|semantic|hybrid] [--review-pending --status pending]
                                         Search active and pinned global/project context by default
   search <query> --json [--explain]     Print structured search results
@@ -680,10 +713,14 @@ Commands:
                                         Forget authoritative memory and propagate deletion to projections
   retrieval-eval [--fixture path] [--json]
                                         Run deterministic local retrieval quality fixtures
-  list [--project path|--all-projects] [--status pending|active|pinned|archived|expired] [--json]
+  list [--project path|--all-projects] [--status pending|active|pinned|archived|expired|quarantined] [--json]
                                         List active/pinned memory; other states require --status
   pending [--project path|--all-projects] [--json]
                                         List pending automatic memories
+  quarantine [--project path|--all-projects] [--json]
+                                        Review quarantined memory excluded from normal retrieval
+  trust-summary [--project path|--all-projects]
+                                        Print compact provenance and freshness counts without memory text
   approve <memory-id> [--json]          Approve a pending memory
   archive <memory-id> [--json]          Archive a memory
   expire <memory-id> [--json]           Mark a memory expired

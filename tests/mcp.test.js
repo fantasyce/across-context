@@ -26,6 +26,7 @@ test("MCP server definition exposes memory tools backed by the vault", async () 
       "get_loop_history",
       "get_memory_backend",
       "get_memory_schema_summary",
+      "get_memory_trust_summary",
       "get_project_context",
       "import_skill_memory",
       "improve_memory",
@@ -41,6 +42,7 @@ test("MCP server definition exposes memory tools backed by the vault", async () 
       "retrieve_context",
       "retrieve_context_merged",
       "review_pending_memories",
+      "review_quarantined_memories",
       "rollback_distilled_memory",
       "run_retrieval_evaluation",
       "search_context"

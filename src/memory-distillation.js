@@ -36,6 +36,11 @@ export async function improveMemory(vault, input = {}) {
       text: JSON.stringify(payload),
       tags: ["distilled-memory", `memory-schema:${payload.memory_schema}`],
       source: "memory-distillation",
+      source_type: "distillation",
+      source_id: payload.distillation.cluster_digest,
+      trust_level: "trusted",
+      observed_at: latestObservedAt(cluster),
+      expires_at: earliestExpiry(cluster),
       status: "pending",
       auto: true,
       visibility: cluster.every((item) => item.entry.visibility === "team") ? "team" : "private"
@@ -84,7 +89,7 @@ export async function approveGovernedMemory(vault, id) {
   const records = await vault.listMemories({ includeGlobal: true, includeProjects: true });
   const entry = records.find((item) => item.id === id);
   if (!entry) throw new Error(`Memory not found: ${id}`);
-  return isDistilledProposal(entry) ? approveDistilledMemory(vault, id) : vault.updateStatus(id, "active");
+  return isDistilledProposal(entry) ? approveDistilledMemory(vault, id) : vault.approve(id);
 }
 
 export async function rollbackDistilledMemory(vault, id) {
@@ -181,7 +186,13 @@ function buildProposalPayload(cluster, input) {
     status: item.entry.status || "active",
     scope: item.entry.scope,
     project_id: item.entry.projectId || null,
-    redactions: item.privacy.redaction_count
+    redactions: item.privacy.redaction_count,
+    source_type: item.entry.provenance?.source_type || "legacy",
+    source_id: item.entry.provenance?.source_id || item.entry.id,
+    trust_level: item.entry.provenance?.trust_level || "legacy_unspecified",
+    evidence_hash: item.entry.provenance?.evidence_hash || sha256(item.text),
+    observed_at: item.entry.provenance?.observed_at || item.entry.createdAt || null,
+    expires_at: item.entry.provenance?.expires_at || null
   }))).sort((left, right) => left.memory_id.localeCompare(right.memory_id));
   const clusterDigest = sha256(sourceRecords.map((source) => source.digest).sort().join(":"));
   return {
@@ -271,6 +282,17 @@ function privacySummary(sanitized) {
     transcript_redactions: sanitized.rawTranscriptRedactions,
     reasoning_redactions: sanitized.hiddenReasoningRedactions
   };
+}
+
+function latestObservedAt(cluster) {
+  return cluster.flatMap((source) => [source, ...source.duplicates])
+    .map((item) => item.entry.provenance?.observed_at || item.entry.createdAt)
+    .filter(Boolean).sort().at(-1);
+}
+
+function earliestExpiry(cluster) {
+  return cluster.flatMap((source) => [source, ...source.duplicates])
+    .map((item) => item.entry.provenance?.expires_at).filter(Boolean).sort()[0];
 }
 
 function sha256(value) {

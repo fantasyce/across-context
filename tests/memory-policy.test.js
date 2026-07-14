@@ -82,7 +82,8 @@ test("MemoryPolicyEngine redacts raw transcripts and hidden reasoning genericall
     type: "session"
   }, []);
 
-  assert.equal(decision.status, "allow");
+  assert.equal(decision.status, "quarantine");
+  assert.equal(decision.memoryStatus, "quarantined");
   assert.equal(decision.rawTranscriptRedacted, true);
   assert.equal(decision.hiddenReasoningRedacted, true);
   assert.match(decision.text, /REDACTED_RAW_TRANSCRIPT/);

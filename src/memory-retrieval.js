@@ -119,6 +119,7 @@ export function retrieveEntries(entries = [], input = {}) {
     query,
     statuses: input.statuses || [...ACTIVE_MEMORY_STATUSES],
     pending_review: (input.statuses || []).includes("pending"),
+    quarantine_review: (input.statuses || []).includes("quarantined"),
     local_only: input.embedding?.network_performed !== true,
     deterministic: !input.embedding || input.embedding.provider === "local",
     projection_used: projectionUsed,
@@ -201,6 +202,9 @@ export function retrievalStatuses(input = {}) {
   const statuses = [...new Set(requested.map((status) => String(status || "").trim()).filter(Boolean))];
   if (statuses.includes("pending") && input.reviewPending !== true) {
     throw new Error("Pending memory retrieval requires reviewPending=true.");
+  }
+  if (statuses.includes("quarantined") && input.reviewQuarantined !== true) {
+    throw new Error("Quarantined memory retrieval requires reviewQuarantined=true.");
   }
   return statuses;
 }
@@ -297,6 +301,7 @@ function routeDefinition(id, description) {
     description,
     default_statuses: [...ACTIVE_MEMORY_STATUSES],
     pending_requires_explicit_review: true,
+    quarantine_requires_explicit_review: true,
     network_required: false
   };
 }

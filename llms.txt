@@ -12,6 +12,11 @@ JSONL records are classified without migration, and optional graph plus local
 deterministic hash-vector projections remain derived state with no network or
 provider requirement.
 
+New records support `across-memory-provenance/1.0`; untrusted plugin output,
+prompt injection, malformed payloads, and raw execution logs are quarantined
+outside normal retrieval. Expiry is enforced at read time, and trust summaries
+do not expose raw memory text or source identifiers.
+
 Session and pending candidates can be improved into deduplicated, clustered,
 compressed permanent-memory proposals. These proposals stay pending until
 explicit approval, preserve provenance, support rollback, and participate in
