@@ -8,10 +8,10 @@
   "part_of": "Across",
   "repository": "fantasyce/across-context",
   "current_release": {
-    "version": "v0.9.0",
+    "version": "v0.10.0",
     "published_at": "2026-07-11",
-    "tag": "v0.9.0",
-    "release_url": "https://github.com/fantasyce/across-context/releases/tag/v0.9.0"
+    "tag": "v0.10.0",
+    "release_url": "https://github.com/fantasyce/across-context/releases/tag/v0.10.0"
   },
   "role": "local memory provider",
   "hosts": [

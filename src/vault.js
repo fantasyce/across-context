@@ -5,6 +5,11 @@ import { MemoryPolicyEngine, isSensitivePolicyDecision, normalizeMemoryText } fr
 import { resolveMemoryBackend } from "./memory-backend.js";
 import { searchEntries } from "./semantic-search.js";
 import {
+  compactTrustSummary,
+  effectiveMemoryStatus,
+  isTrustedForActivation
+} from "./memory-provenance.js";
+import {
   defaultHome,
   newMemoryId,
   normalizeMemoryType,
@@ -59,7 +64,14 @@ export class ContextVault {
         tags: input.tags || [],
         source: input.source,
         auto: Boolean(input.auto),
-        status: input.status
+        status: input.status,
+        source_type: input.source_type ?? input.sourceType,
+        source_id: input.source_id ?? input.sourceId,
+        trust_level: input.trust_level ?? input.trustLevel,
+        evidence_hash: input.evidence_hash ?? input.evidenceHash,
+        observed_at: input.observed_at ?? input.observedAt,
+        expires_at: input.expires_at ?? input.expiresAt,
+        provenance: input.provenance
       }, existing);
 
       if (decision.status === "deny") {
@@ -86,6 +98,7 @@ export class ContextVault {
         text: decision.text,
         tags: splitTags(decision.tags || input.tags),
         source: input.source,
+        provenance: decision.provenance,
         status: normalizeStatus(decision.memoryStatus || input.status || "active"),
         visibility: normalizeVisibility(input.visibility || "private"),
         policy: {
@@ -95,7 +108,8 @@ export class ContextVault {
           localPathRedacted: Boolean(decision.localPathRedacted),
           rawTranscriptRedacted: Boolean(decision.rawTranscriptRedacted),
           hiddenReasoningRedacted: Boolean(decision.hiddenReasoningRedacted),
-          tagRedactions: Number(decision.tagRedactions || 0)
+          tagRedactions: Number(decision.tagRedactions || 0),
+          quarantineReasons: decision.quarantineReasons || []
         },
         createdAt: timestamp,
         updatedAt: timestamp
@@ -148,6 +162,7 @@ export class ContextVault {
     }
     const statusSet = normalizeStatusSet(options);
     return memories
+      .map((entry) => ({ ...entry, status: effectiveMemoryStatus(entry) }))
       .filter((entry) => !statusSet || statusSet.has(entry.status || "active"))
       .filter((entry) => !options.visibility || (entry.visibility || "private") === options.visibility)
       .filter((entry) => !options.type || entry.type === options.type)
@@ -163,8 +178,18 @@ export class ContextVault {
       total: memories.length,
       byScope: countBy(memories, "scope"),
       byType: countBy(memories, "type"),
-      byStatus: countBy(memories.map((entry) => ({ ...entry, status: entry.status || "active" })), "status")
+      byStatus: countBy(memories.map((entry) => ({ ...entry, status: entry.status || "active" })), "status"),
+      trust: compactTrustSummary(memories)
     };
+  }
+
+  async trustSummary(options = {}) {
+    const memories = await this.listMemories({
+      projectRoot: options.projectRoot,
+      includeGlobal: options.includeGlobal !== false,
+      includeProjects: Boolean(options.includeProjects)
+    });
+    return compactTrustSummary(memories);
   }
 
   async agentLoopMemoryMetrics(options = {}) {
@@ -290,11 +315,34 @@ export class ContextVault {
         const memories = await readJsonl(file);
         const index = memories.findIndex((entry) => entry.id === targetId);
         if (index === -1) continue;
+        const current = prepareStatusTransition(memories[index], nextStatus);
         const entry = {
-          ...memories[index],
+          ...current,
           status: nextStatus,
           updatedAt: nowIso()
         };
+        memories[index] = entry;
+        await writeJsonl(file, memories);
+        return entry;
+      }
+      throw new Error(`Memory not found: ${targetId}`);
+    });
+    await this.#refreshProjectionIfPresent();
+    return updated;
+  }
+
+  async approve(id) {
+    await this.init();
+    const targetId = String(id || "").trim();
+    if (!targetId) throw new Error("Memory id is required");
+    const updated = await this.#withVaultLock(async () => {
+      for (const file of await this.#memoryFiles()) {
+        const memories = await readJsonl(file);
+        const index = memories.findIndex((entry) => entry.id === targetId);
+        if (index === -1) continue;
+        const current = memories[index];
+        const promoted = prepareStatusTransition(current, "active");
+        const entry = { ...promoted, status: "active", updatedAt: nowIso() };
         memories[index] = entry;
         await writeJsonl(file, memories);
         return entry;
@@ -321,8 +369,9 @@ export class ContextVault {
         let changed = false;
         for (let index = 0; index < memories.length; index += 1) {
           if (!targets.has(memories[index].id)) continue;
+          const current = prepareStatusTransition(memories[index], nextStatus);
           const entry = {
-            ...memories[index],
+            ...current,
             status: nextStatus,
             updatedAt: nowIso()
           };
@@ -362,7 +411,8 @@ export class ContextVault {
         for (let index = 0; index < memories.length; index += 1) {
           const nextStatus = pending.get(memories[index].id);
           if (!nextStatus) continue;
-          memories[index] = { ...memories[index], status: nextStatus, updatedAt: nowIso() };
+          const current = prepareStatusTransition(memories[index], nextStatus);
+          memories[index] = { ...current, status: nextStatus, updatedAt: nowIso() };
           updated.push(memories[index]);
           pending.delete(memories[index].id);
           changed = true;
@@ -421,6 +471,9 @@ export class ContextVault {
   }
 
   async search(input) {
+    if ((input.status === "quarantined" || input.statuses?.includes?.("quarantined")) && input.reviewQuarantined !== true) {
+      throw new Error("Quarantined memory retrieval requires reviewQuarantined=true.");
+    }
     const query = String(input.query || "").trim();
     if (!query && !input.allowEmptyQuery) {
       return [];
@@ -608,10 +661,27 @@ function isSensitivePolicyEvent(event) {
 
 function normalizeStatus(status) {
   const value = String(status || "active");
-  if (!["pending", "active", "pinned", "archived", "expired"].includes(value)) {
+  if (!["pending", "active", "pinned", "archived", "expired", "quarantined"].includes(value)) {
     throw new Error(`Invalid memory status: ${status}`);
   }
   return value;
+}
+
+function prepareStatusTransition(entry, nextStatus) {
+  if (!["active", "pinned"].includes(nextStatus)) return entry;
+  if (entry.status === "quarantined" || (entry.policy?.quarantineReasons || []).length) {
+    throw new Error(`Quarantined memory cannot be promoted without replacing the unsafe content: ${entry.id}`);
+  }
+  if (entry.provenance?.trust_level === "untrusted") {
+    throw new Error(`Untrusted memory cannot become ${nextStatus}: ${entry.id}`);
+  }
+  const promoted = entry.provenance?.trust_level === "review"
+    ? { ...entry, provenance: { ...entry.provenance, trust_level: "trusted" } }
+    : entry;
+  if (!isTrustedForActivation(promoted)) {
+    throw new Error(`Memory cannot become ${nextStatus} until trusted, unexpired provenance passes review: ${entry.id}`);
+  }
+  return promoted;
 }
 
 function normalizeStatusSet(options = {}) {
@@ -653,6 +723,7 @@ function sanitizeTeamMemory(entry) {
     tags: entry.tags || [],
     status: entry.status || "active",
     visibility: entry.visibility || "private",
+    provenance: entry.provenance,
     projectName: entry.projectName,
     createdAt: entry.createdAt,
     updatedAt: entry.updatedAt

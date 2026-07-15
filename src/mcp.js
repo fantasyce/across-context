@@ -18,7 +18,7 @@ import { approveGovernedMemory, improveMemory, rollbackDistilledMemory } from ".
 export function createContextMcpServerDefinition(vault) {
   return {
     name: "across-context",
-    version: "0.9.0",
+    version: "0.10.0",
     resources: [
       {
         uri: "across-context://agent-card",
@@ -109,6 +109,12 @@ export function createContextMcpServerDefinition(vault) {
         name: "Memory Distillation Policy",
         description: "Governed local improve workflow, provenance, approval, rollback, and forgetting contract.",
         mimeType: "application/json"
+      },
+      {
+        uri: "across-context://memory-trust-summary",
+        name: "Memory Trust Summary",
+        description: "Compact provenance, quarantine, and freshness summary without raw memory text or source identifiers.",
+        mimeType: "application/json"
       }
     ],
     prompts: [
@@ -154,7 +160,13 @@ export function createContextMcpServerDefinition(vault) {
             projectRoot: { type: "string" },
             tags: { type: "array", items: { type: "string" } },
             auto: { type: "boolean", default: true },
-            visibility: { type: "string", enum: ["private", "team"], default: "private" }
+            visibility: { type: "string", enum: ["private", "team"], default: "private" },
+            source_type: { type: "string" },
+            source_id: { type: "string" },
+            trust_level: { type: "string", enum: ["trusted", "review", "untrusted"] },
+            evidence_hash: { type: "string" },
+            observed_at: { type: "string" },
+            expires_at: { type: "string" }
           },
           required: ["text"]
         },
@@ -167,9 +179,15 @@ export function createContextMcpServerDefinition(vault) {
             tags: args.tags || [],
             auto: args.auto !== false,
             visibility: args.visibility,
-            source: "mcp"
+            source: "mcp",
+            source_type: args.source_type,
+            source_id: args.source_id,
+            trust_level: args.trust_level,
+            evidence_hash: args.evidence_hash,
+            observed_at: args.observed_at,
+            expires_at: args.expires_at
           });
-          return textResult(`Remembered ${entry.status} ${entry.scope} ${entry.type}: ${entry.text}`);
+          return textResult(`Remembered ${entry.status} ${entry.scope} ${entry.type}: ${entry.text}`, { memory: entry });
         }
       },
       {
@@ -184,7 +202,7 @@ export function createContextMcpServerDefinition(vault) {
             mode: { type: "string", enum: ["keyword", "semantic", "hybrid"], default: "hybrid" },
             status: {
               type: "string",
-              enum: ["pending", "active", "pinned", "archived", "expired"],
+              enum: ["pending", "active", "pinned", "archived", "expired", "quarantined"],
               description: "Omit for active and pinned memory only; pass pending explicitly for review."
             },
             reviewPending: {
@@ -192,6 +210,7 @@ export function createContextMcpServerDefinition(vault) {
               default: false,
               description: "Must be true when status is pending."
             },
+            reviewQuarantined: { type: "boolean", default: false },
             agentPluginId: { type: "string" },
             agent_plugin_id: { type: "string" },
             agentScope: { type: "string", enum: ["prefer", "only", "fallback"], default: "prefer" },
@@ -203,6 +222,9 @@ export function createContextMcpServerDefinition(vault) {
           if (args.status === "pending" && args.reviewPending !== true) {
             throw new Error("Pending search requires reviewPending=true; use review_pending_memories for the review queue.");
           }
+          if (args.status === "quarantined" && args.reviewQuarantined !== true) {
+            throw new Error("Quarantined search requires reviewQuarantined=true; use review_quarantined_memories for the review queue.");
+          }
           const agentPluginId = args.agentPluginId || args.agent_plugin_id;
           const requestedLimit = args.limit || 10;
           const results = await vault.search({
@@ -211,6 +233,7 @@ export function createContextMcpServerDefinition(vault) {
             limit: agentPluginId ? Math.max(requestedLimit * 4, 20) : requestedLimit,
             mode: args.mode || "hybrid",
             status: args.status,
+            reviewQuarantined: args.reviewQuarantined,
             includeGlobal: true
           });
           const scopedResults = prioritizeAgentPluginResults(results, {
@@ -235,8 +258,9 @@ export function createContextMcpServerDefinition(vault) {
             projectRoot: { type: "string" },
             includeProjects: { type: "boolean", default: false },
             limit: { type: "number", default: 10 },
-            status: { type: "string", enum: ["pending", "active", "pinned", "archived", "expired"] },
-            reviewPending: { type: "boolean", default: false }
+            status: { type: "string", enum: ["pending", "active", "pinned", "archived", "expired", "quarantined"] },
+            reviewPending: { type: "boolean", default: false },
+            reviewQuarantined: { type: "boolean", default: false }
           },
           required: ["route"]
         },
@@ -256,8 +280,9 @@ export function createContextMcpServerDefinition(vault) {
             projectRoot: { type: "string" },
             includeProjects: { type: "boolean", default: false },
             limit: { type: "number", default: 10 },
-            status: { type: "string", enum: ["pending", "active", "pinned", "archived", "expired"] },
+            status: { type: "string", enum: ["pending", "active", "pinned", "archived", "expired", "quarantined"] },
             reviewPending: { type: "boolean", default: false },
+            reviewQuarantined: { type: "boolean", default: false },
             includeRouteResults: { type: "boolean", default: false }
           },
           required: ["query"]
@@ -401,6 +426,38 @@ export function createContextMcpServerDefinition(vault) {
             status: "pending"
           });
           return textResult(memories.map((entry) => `- ${entry.id}: ${entry.text}`).join("\n") || "No pending memories.");
+        }
+      },
+      {
+        name: "review_quarantined_memories",
+        description: "List quarantined memory for human review. Quarantined records never enter normal retrieval.",
+        inputSchema: {
+          type: "object",
+          properties: { projectRoot: { type: "string" } }
+        },
+        handler: async (args) => {
+          const memories = await vault.listMemories({
+            projectRoot: args.projectRoot,
+            includeGlobal: true,
+            includeProjects: !args.projectRoot,
+            status: "quarantined"
+          });
+          return textResult(JSON.stringify({ memories }, null, 2), { memories });
+        }
+      },
+      {
+        name: "get_memory_trust_summary",
+        description: "Return compact provenance, trust, quarantine, and freshness counts without raw memory text or source identifiers.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            projectRoot: { type: "string" },
+            includeProjects: { type: "boolean", default: false }
+          }
+        },
+        handler: async (args) => {
+          const result = await vault.trustSummary({ projectRoot: args.projectRoot, includeProjects: Boolean(args.includeProjects) });
+          return textResult(JSON.stringify(result, null, 2), { result });
         }
       },
       {
@@ -810,6 +867,12 @@ async function readResource(vault, uri, args = {}) {
       local_only: true,
       deterministic: true
     }, null, 2));
+  }
+  if (uri === "across-context://memory-trust-summary") {
+    return resourceResult(uri, "application/json", JSON.stringify(await vault.trustSummary({
+      projectRoot: args.projectRoot,
+      includeProjects: Boolean(args.includeProjects)
+    }), null, 2));
   }
   throw new Error(`Unknown resource: ${uri}`);
 }

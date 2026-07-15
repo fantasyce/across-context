@@ -42,9 +42,12 @@ test("improve distills session and pending candidates into governed proposals", 
   const proposalEntry = result.proposals[0].memory;
   const proposal = JSON.parse(proposalEntry.text);
   assert.equal(proposalEntry.status, "pending");
+  assert.equal(proposalEntry.provenance.schema_version, "across-memory-provenance/1.0");
+  assert.equal(proposalEntry.provenance.trust_level, "trusted");
   assert.equal(proposal.schema_version, DISTILLED_MEMORY_PROPOSAL_SCHEMA);
   assert.equal(proposal.governance.approval_required, true);
   assert.deepEqual(proposal.provenance.sources.map((source) => source.memory_id), [first.id, second.id].sort());
+  assert.ok(proposal.provenance.sources.every((source) => source.source_type && source.evidence_hash && source.observed_at));
   assert.doesNotMatch(proposalEntry.text, /\/Users\/example/);
   assert.match(proposal.distilled_text, /REDACTED_LOCAL_PATH/);
 

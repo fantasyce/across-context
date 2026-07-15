@@ -6,6 +6,12 @@
 
 One local-first memory layer for every coding agent.
 
+Every new memory can carry source, trust, evidence hash, observation time, and
+expiry under `across-memory-provenance/1.0`. Prompt injection, malformed output,
+raw execution logs, and untrusted plugin output are quarantined and excluded
+from normal retrieval. Safe reviewed conclusions can be approved in one action;
+expired or quarantined records cannot silently become active memory.
+
 ![Across Context hero](assets/readme/across-context-hero.png)
 
 Across Context is a zero-runtime-dependency CLI and MCP server that gives Codex,
@@ -83,6 +89,14 @@ or merge all routes with explainable weighted reciprocal-rank fusion. Embeddings
 use deterministic local hash vectors by default. A host may inject a provider
 adapter through the JavaScript API; adapter failure falls back locally, and the
 core never performs network requests itself.
+
+### New in v0.10.0: Governed Memory Provenance
+
+Every new memory now carries bounded provenance, trust, observation time, and
+expiry metadata. Untrusted or malformed sources are quarantined before normal
+retrieval; human approval can promote safe reviewed conclusions, while expiry,
+forgetting, distillation, and rollback propagate consistently through the
+vault and its projections.
 
 ### New in v0.9.0: Governed Distillation And Five-Route Retrieval
 
@@ -299,7 +313,7 @@ operating instructions, and automatic memory needs guardrails.
 
 ### Install
 
-The current open-source distribution is GitHub-first. The `v0.9.0` tag and
+The current open-source distribution is GitHub-first. The `v0.10.0` tag and
 GitHub source archives are the canonical release artifacts; no extra npm
 tarball asset is attached to the GitHub Release, and npm registry publication is
 not required for hosts to install or run the plugin.
@@ -316,7 +330,7 @@ Or build and install a local npm tarball from the checked-out release tag:
 
 ```bash
 npm pack
-npm install -g ./across-context-0.9.0.tgz
+npm install -g ./across-context-0.10.0.tgz
 ```
 
 Verify:
@@ -670,6 +684,12 @@ across-context setup --all --yes
 - 生成 `CLAUDE.md`
 - 生成 Cursor MCP 配置和规则
 - 注入自动读写记忆的行为规则
+
+### v0.10.0 新能力
+
+所有新记忆都会记录有界的来源、信任状态、观察时间和有效期。来自不可信
+插件、提示注入、畸形输出或原始执行日志的内容会先被隔离；人工批准、到期、
+遗忘、蒸馏和回滚会一致地传播到本地存储与检索投影。
 
 ### v0.9.0 新能力
 

@@ -21,6 +21,7 @@ export function projectionPrivacyPolicy() {
     network_required: false,
     provider_required: false,
     default_statuses: [...ACTIVE_MEMORY_STATUSES],
+    quarantine_policy: "exclude_record",
     secret_policy: "exclude_record",
     absolute_path_policy: "redact",
     raw_transcript_policy: "redact",
@@ -227,6 +228,7 @@ function sanitizeProjectionEntry(entry) {
       text: sanitized.text,
       created_at: entry.createdAt || null,
       updated_at: entry.updatedAt || entry.createdAt || null,
+      provenance: entry.provenance || null,
       classification,
       privacy: {
         redaction_count: sanitized.redactionCount,
@@ -381,6 +383,7 @@ function sourceDigestRecord(entry) {
     status: entry.status,
     text: entry.text,
     tags: entry.tags,
+    provenance: entry.provenance,
     classification: entry.classification,
     updated_at: entry.updated_at
   };
