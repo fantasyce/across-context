@@ -35,14 +35,17 @@ test("MCP server definition exposes memory tools backed by the vault", async () 
       "recall_agent_team_receipts",
       "recall_evidence_memory",
       "recall_loop_memory",
+      "recall_worker_experience",
       "remember_agent_team_receipt",
       "remember_context",
       "remember_evidence_memory",
       "remember_loop_memory",
+      "remember_worker_outcome",
       "retrieve_context",
       "retrieve_context_merged",
       "review_pending_memories",
       "review_quarantined_memories",
+      "revoke_worker_memories",
       "rollback_distilled_memory",
       "run_retrieval_evaluation",
       "search_context"
@@ -75,6 +78,7 @@ test("MCP server definition exposes resources and prompts", async () => {
   assert.ok(definition.resources.some((resource) => resource.uri === "across-context://context-packs"));
   assert.ok(definition.resources.some((resource) => resource.uri === "across-context://evidence-memory-policy"));
   assert.ok(definition.resources.some((resource) => resource.uri === "across-context://agent-team-receipts"));
+  assert.ok(definition.resources.some((resource) => resource.uri === "across-context://worker-experience"));
   assert.ok(definition.resources.some((resource) => resource.uri === "across-context://skill-export"));
   assert.ok(definition.resources.some((resource) => resource.uri === "across-context://memory-backend"));
   assert.ok(definition.resources.some((resource) => resource.uri === "across-context://memory-schemas"));

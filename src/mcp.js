@@ -14,11 +14,12 @@ import { MEMORY_SCHEMA_DEFINITIONS, schemaAwareSummary } from "./memory-schema.j
 import { forgetProjectedMemory, inspectMemoryProjection, rebuildMemoryProjection } from "./memory-projection.js";
 import { runRetrievalEvaluation } from "./retrieval-eval.js";
 import { approveGovernedMemory, improveMemory, rollbackDistilledMemory } from "./memory-distillation.js";
+import { mergeWorkerExperiences, recallableWorkerMemories, rememberWorkerOutcome, revokeWorkerMemories } from "./worker-memory.js";
 
 export function createContextMcpServerDefinition(vault) {
   return {
     name: "across-context",
-    version: "0.10.0",
+    version: "0.11.0",
     resources: [
       {
         uri: "across-context://agent-card",
@@ -114,6 +115,12 @@ export function createContextMcpServerDefinition(vault) {
         uri: "across-context://memory-trust-summary",
         name: "Memory Trust Summary",
         description: "Compact provenance, quarantine, and freshness summary without raw memory text or source identifiers.",
+        mimeType: "application/json"
+      },
+      {
+        uri: "across-context://worker-experience",
+        name: "Approved Worker Experience",
+        description: "Approved, unexpired, redacted Worker outcomes grouped by node.",
         mimeType: "application/json"
       }
     ],
@@ -646,6 +653,56 @@ export function createContextMcpServerDefinition(vault) {
         }
       },
       {
+        name: "remember_worker_outcome",
+        description: "Store a compact redacted Worker outcome as pending memory for human review.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            outcome: { type: "object" },
+            projectRoot: { type: "string" }
+          },
+          required: ["outcome"]
+        },
+        handler: async (args) => {
+          const result = await rememberWorkerOutcome(vault, args.outcome, { projectRoot: args.projectRoot });
+          return textResult(JSON.stringify(result, null, 2), { result });
+        }
+      },
+      {
+        name: "recall_worker_experience",
+        description: "Recall only approved and unexpired Worker outcomes; pending results stay excluded.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            projectRoot: { type: "string" },
+            nodeId: { type: "string" },
+            includeProjects: { type: "boolean", default: false }
+          }
+        },
+        handler: async (args) => {
+          const memories = await vault.listMemories({ projectRoot: args.projectRoot, includeGlobal: true, includeProjects: Boolean(args.includeProjects) });
+          const result = {
+            schema_version: "across-worker-memory-recall/1.0",
+            results: recallableWorkerMemories(memories, { nodeId: args.nodeId || null }),
+            merged: mergeWorkerExperiences(memories)
+          };
+          return textResult(JSON.stringify(result, null, 2), { result });
+        }
+      },
+      {
+        name: "revoke_worker_memories",
+        description: "Archive all memories associated with a revoked Worker node.",
+        inputSchema: {
+          type: "object",
+          properties: { nodeId: { type: "string" }, projectRoot: { type: "string" } },
+          required: ["nodeId"]
+        },
+        handler: async (args) => {
+          const result = await revokeWorkerMemories(vault, args.nodeId, { projectRoot: args.projectRoot });
+          return textResult(JSON.stringify(result, null, 2), { result });
+        }
+      },
+      {
         name: "recall_evidence_memory",
         description: "Recall compact evidence graph memories by spec id or run id.",
         inputSchema: {
@@ -823,6 +880,14 @@ async function readResource(vault, uri, args = {}) {
       status: args.status
     });
     return resourceResult(uri, "application/json", JSON.stringify(result, null, 2));
+  }
+  if (uri === "across-context://worker-experience") {
+    const memories = await vault.listMemories({ projectRoot: args.projectRoot, includeGlobal: true, includeProjects: Boolean(args.includeProjects) });
+    return resourceResult(uri, "application/json", JSON.stringify({
+      schema_version: "across-worker-memory-recall/1.0",
+      results: recallableWorkerMemories(memories, { nodeId: args.nodeId || null }),
+      merged: mergeWorkerExperiences(memories)
+    }, null, 2));
   }
   if (uri === "across-context://skill-export") {
     return resourceResult(uri, "application/json", JSON.stringify(await renderSkillExport(vault), null, 2));
