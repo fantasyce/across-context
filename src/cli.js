@@ -20,6 +20,7 @@ import { MEMORY_SCHEMA_DEFINITIONS, schemaAwareSummary } from "./memory-schema.j
 import { forgetProjectedMemory, inspectMemoryProjection, rebuildMemoryProjection } from "./memory-projection.js";
 import { runRetrievalEvaluation } from "./retrieval-eval.js";
 import { approveGovernedMemory, improveMemory, rollbackDistilledMemory } from "./memory-distillation.js";
+import { mergeWorkerExperiences, recallableWorkerMemories, rememberWorkerOutcome, revokeWorkerMemories } from "./worker-memory.js";
 
 const vault = new ContextVault();
 
@@ -231,6 +232,32 @@ async function main(argv) {
     });
     console.log(JSON.stringify(summary, null, 2));
     return;
+  }
+
+  if (command === "worker-memory") {
+    const [subcommand, ...workerRest] = rest;
+    const parsed = parseArgs(workerRest);
+    if (subcommand === "remember") {
+      const outcome = JSON.parse(String(parsed["outcome-json"] || parsed.positionals.join(" ") || "{}"));
+      const result = await rememberWorkerOutcome(vault, outcome, { projectRoot: parsed.project });
+      console.log(parsed.json ? JSON.stringify(result, null, 2) : `${result.id}: ${result.status}`);
+      return;
+    }
+    if (subcommand === "recall") {
+      const memories = await vault.listMemories({ projectRoot: parsed.project, includeGlobal: true, includeProjects: Boolean(parsed["all-projects"]) });
+      const results = recallableWorkerMemories(memories, { nodeId: parsed["node-id"] || null });
+      const merged = mergeWorkerExperiences(memories);
+      const result = { schema_version: "across-worker-memory-recall/1.0", results, merged };
+      console.log(parsed.json ? JSON.stringify(result, null, 2) : results.map((item) => `${item.memory_id} ${item.node_id} ${item.terminal_state}: ${item.conclusion}`).join("\n") || "No approved Worker memory found.");
+      return;
+    }
+    if (subcommand === "revoke") {
+      const nodeId = parsed["node-id"] || parsed.positionals[0];
+      const result = await revokeWorkerMemories(vault, nodeId, { projectRoot: parsed.project });
+      console.log(parsed.json ? JSON.stringify(result, null, 2) : `${result.node_id}: ${result.revoked} memories archived`);
+      return;
+    }
+    throw new Error("Usage: across-context worker-memory remember|recall|revoke [options]");
   }
 
   if (command === "approve" || command === "archive" || command === "expire") {
@@ -721,6 +748,12 @@ Commands:
                                         Review quarantined memory excluded from normal retrieval
   trust-summary [--project path|--all-projects]
                                         Print compact provenance and freshness counts without memory text
+  worker-memory remember --outcome-json '{}' [--project path] [--json]
+                                        Store a compact Worker evidence outcome as pending review
+  worker-memory recall [--node-id id] [--project path|--all-projects] [--json]
+                                        Recall only approved, unexpired Worker experience
+  worker-memory revoke --node-id id [--project path] [--json]
+                                        Archive Worker memories after device revocation
   approve <memory-id> [--json]          Approve a pending memory
   archive <memory-id> [--json]          Archive a memory
   expire <memory-id> [--json]           Mark a memory expired

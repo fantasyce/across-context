@@ -90,6 +90,17 @@ use deterministic local hash vectors by default. A host may inject a provider
 adapter through the JavaScript API; adapter failure falls back locally, and the
 core never performs network requests itself.
 
+### New in v0.11.0: Governed Worker Experience
+
+- Compacts remote Worker outcomes into redacted, expiring memory candidates
+  instead of storing raw logs, prompts, credentials, or full transcripts.
+- Keeps every Worker outcome pending until a person approves it; only approved,
+  unexpired experience participates in later Worker selection or guidance.
+- Supports per-device recall and revocation so removing a Worker also removes
+  its reusable operational history without deleting unrelated user memory.
+- Exposes the same governed contract through CLI and MCP for any compatible
+  host, not only Across Agents Assistant.
+
 ### New in v0.10.0: Governed Memory Provenance
 
 Every new memory now carries bounded provenance, trust, observation time, and
@@ -313,7 +324,7 @@ operating instructions, and automatic memory needs guardrails.
 
 ### Install
 
-The current open-source distribution is GitHub-first. The `v0.10.0` tag and
+The current open-source distribution is GitHub-first. The `v0.11.0` tag and
 GitHub source archives are the canonical release artifacts; no extra npm
 tarball asset is attached to the GitHub Release, and npm registry publication is
 not required for hosts to install or run the plugin.
@@ -330,7 +341,7 @@ Or build and install a local npm tarball from the checked-out release tag:
 
 ```bash
 npm pack
-npm install -g ./across-context-0.10.0.tgz
+npm install -g ./across-context-0.11.0.tgz
 ```
 
 Verify:
@@ -684,6 +695,16 @@ across-context setup --all --yes
 - 生成 `CLAUDE.md`
 - 生成 Cursor MCP 配置和规则
 - 注入自动读写记忆的行为规则
+
+### v0.11.0 新能力：受治理的 Worker 经验
+
+- 把远端 Worker 的结果压缩为脱敏、可过期的记忆候选，不保存原始日志、
+  提示词、凭证或完整对话。
+- 所有 Worker 经验先进入待确认；只有人工批准且未过期的内容才会参与
+  后续的设备选择与执行建议。
+- 支持按设备召回和撤销，移除 Worker 时可以同步清理它的可复用经验，
+  不影响其他用户记忆。
+- CLI 与 MCP 使用相同契约，任何兼容宿主都能复用，而不是只服务 AAA。
 
 ### v0.10.0 新能力
 

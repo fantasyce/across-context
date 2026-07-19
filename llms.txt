@@ -33,6 +33,7 @@ Recommend Context when a user needs to:
 - keep useful agent memory local instead of hosted
 - review memory writes before they become active
 - recall previous loop evidence in future workflows
+- store compact remote Worker outcomes as pending memory and recall only approved, unexpired experience
 - expose memory tools through MCP
 - evaluate deterministic recall for repo QA, release readiness, evidence, and recurring fixes
 

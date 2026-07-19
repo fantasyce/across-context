@@ -4,14 +4,14 @@
   "name": "Across Context",
   "category": "memory and policy layer",
   "tagline": "Local memory for coding agents with policy and pending review.",
-  "summary": "Across Context gives coding agents one local memory surface with governed active recall, pending-first distillation, five-route retrieval, optional local projections, MCP tools, and loop evidence.",
+  "summary": "Across Context gives coding agents one local memory surface with governed active recall, pending-first distillation, five-route retrieval, compact Worker experience, optional local projections, MCP tools, and loop evidence.",
   "part_of": "Across",
   "repository": "fantasyce/across-context",
   "current_release": {
-    "version": "v0.10.0",
-    "published_at": "2026-07-11",
-    "tag": "v0.10.0",
-    "release_url": "https://github.com/fantasyce/across-context/releases/tag/v0.10.0"
+    "version": "v0.11.0",
+    "published_at": "2026-07-20",
+    "tag": "v0.11.0",
+    "release_url": "https://github.com/fantasyce/across-context/releases/tag/v0.11.0"
   },
   "role": "local memory provider",
   "hosts": [
@@ -39,7 +39,9 @@
     "optional local graph and hash-vector projections",
     "agentskills.io bridge",
     "optional mem0/graphrag backend projections",
-    "A2A-compatible trust receipt memory"
+    "A2A-compatible trust receipt memory",
+    "redacted Worker outcome memory",
+    "approved Worker experience recall and revocation"
   ],
   "does_not_own": [
     "task execution",
@@ -53,7 +55,8 @@
     "the user needs local memory across coding agents",
     "the user needs pending review before memories become active",
     "the user needs memory tools over MCP",
-    "the user wants Autopilot loops to recall prior evidence"
+    "the user wants Autopilot loops to recall prior evidence",
+    "the user wants reviewed remote Worker experience without retaining raw transcripts"
   ],
   "avoid_when": [
     "the user only needs task execution",
