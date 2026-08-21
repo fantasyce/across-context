@@ -16,6 +16,10 @@ import {
 } from "../src/worker-memory.js";
 
 const digest = "a".repeat(64);
+const dayMs = 24 * 60 * 60 * 1000;
+const fixtureNowMs = Date.now();
+const fixtureNow = new Date(fixtureNowMs);
+const fixtureExpiredAt = new Date(fixtureNowMs + 31 * dayMs);
 
 function outcome(overrides = {}) {
   return {
@@ -32,8 +36,8 @@ function outcome(overrides = {}) {
     isolation_level: "bounded",
     transport: "relay",
     cleanup_status: "complete",
-    observed_at: "2026-07-16T00:00:00.000Z",
-    expires_at: "2026-08-15T00:00:00.000Z",
+    observed_at: new Date(fixtureNowMs - dayMs).toISOString(),
+    expires_at: new Date(fixtureNowMs + 30 * dayMs).toISOString(),
     ...overrides
   };
 }
@@ -53,17 +57,17 @@ test("worker outcomes enter Context as pending and remain excluded from normal r
   const remembered = await rememberWorkerOutcome(vault, outcome());
   assert.equal(remembered.status, "pending");
   assert.equal(parseWorkerMemory(remembered).node_id, "node-test");
-  assert.deepEqual(recallableWorkerMemories([remembered], { now: new Date("2026-07-17") }), []);
+  assert.deepEqual(recallableWorkerMemories([remembered], { now: fixtureNow }), []);
   await vault.approve(remembered.id);
   const memories = await vault.listMemories({ includeGlobal: true });
-  assert.equal(recallableWorkerMemories(memories, { now: new Date("2026-07-17") }).length, 1);
+  assert.equal(recallableWorkerMemories(memories, { now: fixtureNow }).length, 1);
 });
 
 test("expired and revoked worker memories never enter recall", () => {
   const base = { id: "memory-1", status: "active", text: JSON.stringify(compactWorkerOutcome(outcome())) };
-  assert.equal(recallableWorkerMemories([base], { now: new Date("2026-09-01") }).length, 0);
+  assert.equal(recallableWorkerMemories([base], { now: fixtureExpiredAt }).length, 0);
   const revoked = { ...base, text: JSON.stringify(compactWorkerOutcome(outcome({ revoked: true }))) };
-  assert.equal(recallableWorkerMemories([revoked], { now: new Date("2026-07-17") }).length, 0);
+  assert.equal(recallableWorkerMemories([revoked], { now: fixtureNow }).length, 0);
 });
 
 test("multi-node experience merge preserves evidence provenance and failure taxonomy", () => {
@@ -72,7 +76,7 @@ test("multi-node experience merge preserves evidence provenance and failure taxo
     { id: "memory-b", status: "active", text: JSON.stringify(compactWorkerOutcome(outcome({ run_id: "run-two", job_id: "job-two", terminal_state: "failed", failure: { category: "provider", code: "timeout", summary: "gateway timeout" } }))) },
     { id: "memory-c", status: "active", text: JSON.stringify(compactWorkerOutcome(outcome({ run_id: "run-three", job_id: "job-three", node_id: "node-other" }))) }
   ];
-  const merged = mergeWorkerExperiences(memories, { now: new Date("2026-07-17") });
+  const merged = mergeWorkerExperiences(memories, { now: fixtureNow });
   assert.equal(merged.length, 2);
   assert.equal(merged.find((item) => item.node_id === "node-test").failures.provider, 1);
   assert.equal(merged.find((item) => item.node_id === "node-test").success_rate, 0.5);
