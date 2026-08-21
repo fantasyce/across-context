@@ -19,7 +19,7 @@ import { mergeWorkerExperiences, recallableWorkerMemories, rememberWorkerOutcome
 export function createContextMcpServerDefinition(vault) {
   return {
     name: "across-context",
-    version: "0.11.0",
+    version: "0.11.1",
     resources: [
       {
         uri: "across-context://agent-card",

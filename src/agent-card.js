@@ -6,7 +6,7 @@ export async function renderAgentCard(vault) {
   const memoryBackend = resolveMemoryBackend({ env: vault?.env || process.env });
   return {
     name: "Across Context",
-    version: "0.11.0",
+    version: "0.11.1",
     description: "Local-first shared memory provider for coding agents.",
     url: "https://github.com/fantasyce/across-context",
     capabilities: {
