@@ -5,7 +5,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { ContextVault } from "../src/vault.js";
 import { retrieveMemory } from "../src/memory-retrieval.js";
-import { MEMORY_PROVENANCE_SCHEMA } from "../src/memory-provenance.js";
+import { goalMemoryAuthorityLabel, MEMORY_PROVENANCE_SCHEMA } from "../src/memory-provenance.js";
 
 test("unsafe and untrusted memory is deterministically quarantined and excluded", async () => {
   const home = await mkdtemp(join(tmpdir(), "across-context-quarantine-"));
@@ -154,4 +154,12 @@ test("legacy JSONL records without provenance remain active and retrievable", as
   assert.equal(results[0].entry.id, "mem_legacy_without_provenance");
   const summary = await vault.trustSummary();
   assert.equal(summary.by_trust_level.legacy_unspecified, 1);
+});
+
+test("Goal memory authority labels require host revision plus trusted active provenance", () => {
+  const active = { status: "active", provenance: { schema_version: MEMORY_PROVENANCE_SCHEMA, trust_level: "trusted" } };
+  assert.equal(goalMemoryAuthorityLabel(active, { goal_revision: 2, trust: "trusted" }, 2), "current_authority_reference");
+  assert.equal(goalMemoryAuthorityLabel(active, { goal_revision: 2, trust: "trusted" }, null), "historical_memory");
+  assert.equal(goalMemoryAuthorityLabel(active, { goal_revision: 2, trust: "review" }, 2), "historical_memory");
+  assert.equal(goalMemoryAuthorityLabel({ ...active, status: "pending" }, { goal_revision: 2, trust: "trusted" }, 2), "historical_memory");
 });

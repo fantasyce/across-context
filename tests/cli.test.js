@@ -115,6 +115,38 @@ test("CLI exposes JSON memory lifecycle operations for host apps", async () => {
   assert.equal(forgotten.forgotten, 1);
 });
 
+test("CLI stores and recalls compact Goal summaries", async () => {
+  const home = await mkdtemp(join(tmpdir(), "across-context-cli-goal-home-"));
+  const env = { ...process.env, ACROSS_CONTEXT_HOME: home };
+  const summary = {
+    goal_id: "goal-cli",
+    goal_revision: 1,
+    conclusion: "CLI Goal summary is ready for host reference.",
+    decision_receipt_refs: ["decision:goal-cli:1"],
+    evidence_receipt_refs: ["evidence:goal-cli:1"],
+    source: { type: "host", ref: "aaa:task-cli" },
+    trust: "trusted"
+  };
+  const remembered = JSON.parse((await exec("node", [
+    cli,
+    "remember-goal-summary",
+    "--summary-json",
+    JSON.stringify(summary),
+    "--json"
+  ], { env })).stdout);
+  assert.equal(remembered.memory.status, "active");
+  const recalled = JSON.parse((await exec("node", [
+    cli,
+    "recall-goal-summary",
+    "--goal-id",
+    "goal-cli",
+    "--current-goal-revision",
+    "1",
+    "--json"
+  ], { env })).stdout);
+  assert.equal(recalled.results[0].authority_label, "current_authority_reference");
+});
+
 test("CLI exposes Agent Loop memory metrics without raw candidate text", async () => {
   const home = await mkdtemp(join(tmpdir(), "across-context-cli-loop-metrics-home-"));
   const project = await mkdtemp(join(tmpdir(), "across-context-cli-loop-metrics-project-"));

@@ -80,7 +80,11 @@ export async function recallEvidenceMemory(vault, options = {}) {
       run_id: payload.run_id,
       summary: payload.summary,
       graph_summary: payload.evidence_graph?.summary || {},
-      graph_hash: payload.evidence_graph?.graph_hash || null
+      graph_hash: payload.evidence_graph?.graph_hash || null,
+      goal_id: payload.evidence_graph?.goal_id || null,
+      goal_revision: payload.evidence_graph?.goal_revision || null,
+      input_fingerprint: payload.evidence_graph?.input_fingerprint || null,
+      criterion_ids: payload.evidence_graph?.criterion_ids || []
     }))
   };
 }
@@ -93,6 +97,12 @@ export function compactEvidenceGraph(graph) {
     run_id: graph.run_id || null,
     spec_id: graph.spec_id || null,
     status: graph.status || "unknown",
+    ...(graph.goal_id ? {
+      goal_id: String(graph.goal_id),
+      goal_revision: Number(graph.goal_revision),
+      input_fingerprint: String(graph.input_fingerprint || ""),
+      criterion_ids: [...new Set((graph.criterion_ids || []).map(String).filter(Boolean))].sort()
+    } : {}),
     nodes: nodes.slice(0, 200).map((node) => ({
       id: String(node.id || ""),
       type: String(node.type || "unknown"),
@@ -127,6 +137,12 @@ function evidenceMemoryPayload({ specId, runId, summary, compactGraph, includeRe
     summary: compactGraph.summary,
     graph_hash: compactGraph.graph_hash
   };
+  if (compactGraph.goal_id) {
+    evidenceGraph.goal_id = compactGraph.goal_id;
+    evidenceGraph.goal_revision = compactGraph.goal_revision;
+    evidenceGraph.input_fingerprint = compactGraph.input_fingerprint;
+    evidenceGraph.criterion_ids = compactGraph.criterion_ids;
+  }
   if (includeRefs) {
     evidenceGraph.node_refs = compactGraph.nodes.slice(0, 3).map((node) => ({
       id: node.id,

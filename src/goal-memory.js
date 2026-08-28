@@ -1,14 +1,22 @@
 import { createHash } from "node:crypto";
+import { ACTIVE_MEMORY_STATUSES } from "./vault.js";
+import { containsSecret } from "./memory-policy.js";
+import { goalMemoryAuthorityLabel } from "./memory-provenance.js";
 
 
 export const GOAL_CONTRACT_SCHEMA = "across-goal-contract/1.0";
 export const GOAL_CHANGE_PROPOSAL_SCHEMA = "across-goal-change-proposal/1.0";
+export const GOAL_MEMORY_SUMMARY_SCHEMA = "across-goal-memory-summary/1.0";
+export const GOAL_MEMORY_RECALL_SCHEMA = "across-context-goal-memory-recall/1.0";
 
 const executionProfiles = new Set(["direct", "orchestrated", "workflow-pack"]);
 const reviewPolicies = new Set(["automatic", "human", "independent_agent", "quality_gate", "security_policy"]);
 const proposalOperations = new Set(["add", "replace", "remove"]);
 const proposalDecisions = new Set(["pending", "accepted", "partially_accepted", "rejected", "superseded"]);
 const hostOwnedPaths = new Set(["/confirmed_by", "/confirmed_at", "/revision", "/goal_id", "/task_id"]);
+const absolutePathPattern = /(?:^|\s)(?:\/Users\/|\/home\/|\/workspace\/|\/Volumes\/|\/Applications\/|\/(?:private\/)?tmp\/|[A-Za-z]:\\)/;
+const rawTranscriptPattern = /(?:BEGIN (?:RAW|FULL|CHAT) TRANSCRIPT|(?:raw|full|chat) transcript\s*:)/i;
+const safeReferencePattern = /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,159}$/;
 
 
 function normalizedText(value) {
@@ -126,7 +134,7 @@ export function normalizeGoalChangeProposal(value = {}) {
     objectValue(operation, "operation");
     if (!proposalOperations.has(operation.op)) throw new TypeError("proposal operation is invalid");
     const path = requiredText(operation.path, "operation path");
-    if (!path.startsWith("/") || hostOwnedPaths.has(path)) throw new TypeError("proposal operation targets host-owned fields");
+    if (!path.startsWith("/") || isHostOwnedPath(path)) throw new TypeError("proposal operation targets host-owned fields");
     if (operation.op !== "remove" && !("value" in operation)) throw new TypeError("proposal operation value is required");
   }
   const impact = objectValue(proposal.impact_summary, "impact_summary");
@@ -143,4 +151,177 @@ export function normalizeGoalChangeProposal(value = {}) {
   requiredText(proposal.created_at, "created_at");
   stableGoalHash(proposal);
   return proposal;
+}
+
+
+export async function rememberGoalSummary(vault, input = {}, options = {}) {
+  if (!vault?.remember) throw new Error("Context vault is required");
+  const goalId = requiredText(input.goal_id ?? input.goalId, "goal_id");
+  const goalRevision = positiveRevision(input.goal_revision ?? input.goalRevision ?? input.revision, "goal_revision");
+  const conclusion = compactSafeText(input.conclusion, "conclusion", 500);
+  const source = normalizeSummarySource(input.source);
+  const pendingProposal = input.proposal?.decision_state === "pending";
+  const requestedTrust = normalizeSummaryTrust(input.trust);
+  const trust = pendingProposal || source.type === "autopilot" ? "review" : requestedTrust;
+  const payload = {
+    schema_version: GOAL_MEMORY_SUMMARY_SCHEMA,
+    goal_id: goalId,
+    goal_revision: goalRevision,
+    conclusion,
+    decision_receipt_refs: safeReferences(input.decision_receipt_refs ?? input.decisionReceiptRefs),
+    evidence_receipt_refs: safeReferences(input.evidence_receipt_refs ?? input.evidenceReceiptRefs),
+    source,
+    trust,
+    supersedes: normalizeSupersedes(input.supersedes)
+  };
+  const text = stableJson(payload);
+  const entry = await vault.remember({
+    text,
+    scope: options.projectRoot ? "project" : "global",
+    projectRoot: options.projectRoot,
+    type: "decision",
+    tags: ["goal-summary", `goal:${goalId}`, `goal-revision:${goalRevision}`],
+    source: "goal-summary",
+    source_type: source.type === "autopilot" ? "agent" : source.type,
+    source_id: source.ref,
+    trust_level: trust,
+    observed_at: (options.now || new Date()).toISOString(),
+    auto: trust !== "trusted" || pendingProposal,
+    status: trust === "trusted" && !pendingProposal ? "active" : "pending",
+    visibility: "private"
+  });
+  return {
+    schema_version: GOAL_MEMORY_SUMMARY_SCHEMA,
+    status: entry.status,
+    memory: entry,
+    summary: {
+      ...payload,
+      activation_eligible: trust === "trusted" && !pendingProposal
+    }
+  };
+}
+
+
+export async function recallGoalSummary(vault, query = {}) {
+  if (!vault?.listMemories) throw new Error("Context vault is required");
+  const statuses = goalRecallStatuses(query);
+  const currentRevision = query.current_goal_revision ?? query.currentGoalRevision;
+  if (currentRevision !== undefined && currentRevision !== null) positiveRevision(Number(currentRevision), "current_goal_revision");
+  const memories = await vault.listMemories({
+    projectRoot: query.projectRoot,
+    includeGlobal: true,
+    includeProjects: Boolean(query.includeProjects),
+    statuses
+  });
+  const goalId = query.goal_id ?? query.goalId;
+  const results = memories
+    .map((entry) => ({ entry, payload: parseGoalSummary(entry.text) }))
+    .filter((item) => item.payload)
+    .filter((item) => !goalId || item.payload.goal_id === goalId)
+    .sort((left, right) => right.payload.goal_revision - left.payload.goal_revision
+      || String(right.entry.createdAt).localeCompare(String(left.entry.createdAt)))
+    .slice(0, Number(query.limit || 20))
+    .map(({ entry, payload }) => {
+      const activationEligible = payload.trust === "trusted"
+        && entry.provenance?.trust_level === "trusted"
+        && ["active", "pinned"].includes(entry.status);
+      const authorityLabel = goalMemoryAuthorityLabel(entry, payload, currentRevision);
+      return {
+        memory_id: entry.id,
+        status: entry.status,
+        goal_id: payload.goal_id,
+        goal_revision: payload.goal_revision,
+        conclusion: payload.conclusion,
+        decision_receipt_refs: payload.decision_receipt_refs,
+        evidence_receipt_refs: payload.evidence_receipt_refs,
+        source: payload.source,
+        trust: payload.trust,
+        supersedes: payload.supersedes,
+        activation_eligible: activationEligible,
+        authority_label: authorityLabel
+      };
+    });
+  return {
+    schema_version: GOAL_MEMORY_RECALL_SCHEMA,
+    goal_id: goalId || null,
+    current_goal_revision: currentRevision === undefined ? null : Number(currentRevision),
+    result_count: results.length,
+    results
+  };
+}
+
+
+function isHostOwnedPath(path) {
+  return [...hostOwnedPaths].some((owned) => path === owned || path.startsWith(`${owned}/`));
+}
+
+
+function compactSafeText(value, name, limit) {
+  const text = requiredText(value, name);
+  if (containsSecret(text)) throw new Error(`${name} contains sensitive or secret text`);
+  if (absolutePathPattern.test(text)) throw new Error(`${name} contains a local path`);
+  if (rawTranscriptPattern.test(text)) throw new Error(`${name} contains a raw transcript`);
+  if (text.length > limit) throw new Error(`${name} exceeds ${limit} characters`);
+  return text;
+}
+
+
+function safeReferences(value) {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value)) throw new Error("receipt references must be an array");
+  return [...new Set(value.map((item) => String(item || "").trim()).filter(Boolean).map((reference) => {
+    if (!safeReferencePattern.test(reference) || containsSecret(reference)) throw new Error("receipt reference is unsafe");
+    return reference;
+  }))].sort();
+}
+
+
+function normalizeSummarySource(value) {
+  const source = objectValue(value, "source");
+  const type = requiredText(source.type, "source.type").toLowerCase();
+  const ref = requiredText(source.ref, "source.ref");
+  if (!safeReferencePattern.test(ref) || containsSecret(ref)) throw new Error("source reference is unsafe");
+  return { type, ref };
+}
+
+
+function normalizeSummaryTrust(value) {
+  const trust = String(value || "review").trim().toLowerCase();
+  if (!["trusted", "review", "untrusted"].includes(trust)) throw new Error("goal summary trust is invalid");
+  return trust;
+}
+
+
+function normalizeSupersedes(value) {
+  if (value === undefined || value === null) return null;
+  const item = objectValue(value, "supersedes");
+  return {
+    goal_revision: positiveRevision(item.goal_revision ?? item.goalRevision, "supersedes.goal_revision"),
+    memory_id: requiredText(item.memory_id ?? item.memoryId, "supersedes.memory_id")
+  };
+}
+
+
+function parseGoalSummary(text) {
+  try {
+    const payload = JSON.parse(text);
+    return payload?.schema_version === GOAL_MEMORY_SUMMARY_SCHEMA ? payload : null;
+  } catch {
+    return null;
+  }
+}
+
+
+function goalRecallStatuses(query) {
+  const requested = query.status !== undefined ? [query.status] : query.statuses || [...ACTIVE_MEMORY_STATUSES];
+  const statuses = requested.map((status) => String(status || "").trim()).filter(Boolean);
+  if (statuses.includes("pending") && query.reviewPending !== true) {
+    throw new Error("Pending goal memory retrieval requires reviewPending=true");
+  }
+  return statuses;
+}
+
+
+function stableJson(value) {
+  return JSON.stringify(sortedJsonValue(value));
 }

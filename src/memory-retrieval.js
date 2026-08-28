@@ -211,7 +211,7 @@ export function retrievalStatuses(input = {}) {
 
 function routeCandidates(classified, route) {
   if (route === RETRIEVAL_ROUTES.EVIDENCE_GRAPH) {
-    return classified.filter(({ classification }) => intersects(classification.schemas, [
+    return classified.filter(({ entry, classification }) => (entry.tags || []).includes("goal-summary") || intersects(classification.schemas, [
       MEMORY_SCHEMAS.RELEASE_EVIDENCE,
       MEMORY_SCHEMAS.TRUST_RECEIPT,
       MEMORY_SCHEMAS.LOOP_EVIDENCE

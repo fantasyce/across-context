@@ -1,11 +1,17 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   criterionId,
   normalizeGoalChangeProposal,
   normalizeGoalContract,
+  recallGoalSummary,
+  rememberGoalSummary,
   stableGoalHash
 } from "../src/goal-memory.js";
+import { ContextVault } from "../src/vault.js";
 
 
 function simpleGoalContract() {
@@ -86,4 +92,112 @@ test("context rejects proposals that attempt to confirm a goal", () => {
   };
 
   assert.throws(() => normalizeGoalChangeProposal(proposal), /operation/);
+});
+
+
+test("goal summary memory persists only compact allowlisted fields", async () => {
+  const home = await mkdtemp(join(tmpdir(), "across-context-goal-summary-"));
+  const vault = new ContextVault({ home });
+  const result = await rememberGoalSummary(vault, {
+    goal_id: "goal-task-001",
+    goal_revision: 1,
+    conclusion: "Implementation and focused checks completed.",
+    decision_receipt_refs: ["decision:goal-task-001:1"],
+    evidence_receipt_refs: ["evidence:run-001"],
+    source: { type: "host", ref: "aaa:task-001" },
+    trust: "trusted",
+    raw_transcript: "BEGIN RAW TRANSCRIPT private conversation END RAW TRANSCRIPT",
+    local_path: "/Users/example/private/repository",
+    token: "sk-example0123456789012345",
+    approval: { approved_by: "human", raw_payload: "must not persist" }
+  });
+
+  const payload = JSON.parse(result.memory.text);
+  assert.deepEqual(Object.keys(payload).sort(), [
+    "conclusion",
+    "decision_receipt_refs",
+    "evidence_receipt_refs",
+    "goal_id",
+    "goal_revision",
+    "schema_version",
+    "source",
+    "supersedes",
+    "trust"
+  ]);
+  assert.doesNotMatch(result.memory.text, /RAW TRANSCRIPT|private\/repository|sk-example|approved_by|raw_payload/);
+  assert.equal(result.memory.status, "active");
+});
+
+
+test("goal summary rejects sensitive conclusion and receipt references", async () => {
+  const home = await mkdtemp(join(tmpdir(), "across-context-goal-sensitive-"));
+  const vault = new ContextVault({ home });
+  await assert.rejects(() => rememberGoalSummary(vault, {
+    goal_id: "goal-sensitive",
+    goal_revision: 1,
+    conclusion: "Use token sk-example0123456789012345",
+    source: { type: "host", ref: "aaa:task" },
+    trust: "trusted"
+  }), /sensitive|secret|token/i);
+  await assert.rejects(() => rememberGoalSummary(vault, {
+    goal_id: "goal-sensitive",
+    goal_revision: 1,
+    conclusion: "Safe conclusion.",
+    evidence_receipt_refs: ["/Users/example/private/evidence.json"],
+    source: { type: "host", ref: "aaa:task" },
+    trust: "trusted"
+  }), /reference/);
+});
+
+
+test("goal summary recall needs a host current revision before it labels authority", async () => {
+  const home = await mkdtemp(join(tmpdir(), "across-context-goal-recall-"));
+  const vault = new ContextVault({ home });
+  const first = await rememberGoalSummary(vault, {
+    goal_id: "goal-revisions",
+    goal_revision: 1,
+    conclusion: "Revision one completed.",
+    source: { type: "host", ref: "aaa:task-revisions" },
+    trust: "trusted"
+  });
+  await rememberGoalSummary(vault, {
+    goal_id: "goal-revisions",
+    goal_revision: 2,
+    conclusion: "Revision two completed after scope change.",
+    source: { type: "host", ref: "aaa:task-revisions" },
+    trust: "trusted",
+    supersedes: { goal_revision: 1, memory_id: first.memory.id }
+  });
+
+  const historical = await recallGoalSummary(vault, { goal_id: "goal-revisions" });
+  assert.ok(historical.results.every((item) => item.authority_label === "historical_memory"));
+  const current = await recallGoalSummary(vault, { goal_id: "goal-revisions", current_goal_revision: 2 });
+  assert.equal(current.results.find((item) => item.goal_revision === 2).authority_label, "current_authority_reference");
+  assert.equal(current.results.find((item) => item.goal_revision === 1).authority_label, "historical_memory");
+  assert.ok(current.results.every((item) => !("execution_health" in item)));
+});
+
+
+test("unconfirmed Autopilot proposals remain pending and activation-ineligible", async () => {
+  const home = await mkdtemp(join(tmpdir(), "across-context-goal-proposal-"));
+  const vault = new ContextVault({ home });
+  const remembered = await rememberGoalSummary(vault, {
+    goal_id: "goal-proposal",
+    goal_revision: 3,
+    conclusion: "Autopilot proposed adding accessibility review.",
+    source: { type: "autopilot", ref: "proposal:accessibility" },
+    trust: "trusted",
+    proposal: { proposal_id: "proposal-accessibility", decision_state: "pending" }
+  });
+  assert.equal(remembered.memory.status, "pending");
+  assert.equal(remembered.summary.trust, "review");
+  assert.equal(remembered.summary.activation_eligible, false);
+  const recalled = await recallGoalSummary(vault, {
+    goal_id: "goal-proposal",
+    status: "pending",
+    reviewPending: true,
+    current_goal_revision: 3
+  });
+  assert.equal(recalled.results[0].authority_label, "historical_memory");
+  assert.equal(recalled.results[0].activation_eligible, false);
 });

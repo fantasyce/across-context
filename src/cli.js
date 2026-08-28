@@ -21,6 +21,7 @@ import { forgetProjectedMemory, inspectMemoryProjection, rebuildMemoryProjection
 import { runRetrievalEvaluation } from "./retrieval-eval.js";
 import { approveGovernedMemory, improveMemory, rollbackDistilledMemory } from "./memory-distillation.js";
 import { mergeWorkerExperiences, recallableWorkerMemories, rememberWorkerOutcome, revokeWorkerMemories } from "./worker-memory.js";
+import { recallGoalSummary, rememberGoalSummary } from "./goal-memory.js";
 
 const vault = new ContextVault();
 
@@ -433,6 +434,29 @@ async function main(argv) {
     return;
   }
 
+  if (command === "remember-goal-summary") {
+    const parsed = parseArgs(rest);
+    const input = parsed["summary-json"] ? JSON.parse(parsed["summary-json"]) : {};
+    const result = await rememberGoalSummary(vault, input, { projectRoot: parsed.project });
+    console.log(parsed.json ? JSON.stringify(result, null, 2) : `${result.status}: ${result.memory?.id}`);
+    return;
+  }
+
+  if (command === "recall-goal-summary") {
+    const parsed = parseArgs(rest);
+    const result = await recallGoalSummary(vault, {
+      goal_id: parsed["goal-id"],
+      current_goal_revision: parsed["current-goal-revision"] ? Number(parsed["current-goal-revision"]) : undefined,
+      status: parsed.status,
+      reviewPending: Boolean(parsed["review-pending"]),
+      projectRoot: parsed.project,
+      includeProjects: Boolean(parsed["all-projects"]),
+      limit: parsed.limit
+    });
+    console.log(parsed.json ? JSON.stringify(result, null, 2) : result.results.map((item) => `${item.goal_id}@${item.goal_revision} ${item.authority_label}: ${item.conclusion}`).join("\n"));
+    return;
+  }
+
   if (command === "recall-evidence") {
     const parsed = parseArgs(rest);
     const result = await recallEvidenceMemory(vault, {
@@ -781,6 +805,10 @@ Commands:
                                         Store compact evidence graph memory as pending review
   recall-evidence --spec-id id|--run-id id [--status pending] [--json]
                                         Recall compact evidence graph memory
+  remember-goal-summary --summary-json '{}' [--project path] [--json]
+                                        Store a compact Goal revision summary and receipt references
+  recall-goal-summary [--goal-id id] [--current-goal-revision n] [--status pending --review-pending] [--json]
+                                        Recall Goal summaries without claiming current authority by default
   remember-agent-team-receipt --pack-id id --receipt-json '{}' [--product-card-json '{}'] [--protocol-readiness-json '{}'] [--json]
                                         Store an agent-team trust receipt as pending memory
   recall-agent-team-receipts [--pack-id id] [--status pending] [--json]

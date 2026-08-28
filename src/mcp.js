@@ -15,6 +15,7 @@ import { forgetProjectedMemory, inspectMemoryProjection, rebuildMemoryProjection
 import { runRetrievalEvaluation } from "./retrieval-eval.js";
 import { approveGovernedMemory, improveMemory, rollbackDistilledMemory } from "./memory-distillation.js";
 import { mergeWorkerExperiences, recallableWorkerMemories, rememberWorkerOutcome, revokeWorkerMemories } from "./worker-memory.js";
+import { recallGoalSummary, rememberGoalSummary } from "./goal-memory.js";
 
 export function createContextMcpServerDefinition(vault) {
   return {
@@ -653,6 +654,30 @@ export function createContextMcpServerDefinition(vault) {
         }
       },
       {
+        name: "remember_goal_summary",
+        description: "Store a compact Goal revision conclusion and receipt references without raw transcripts or approval payloads.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            goal_id: { type: "string" },
+            goal_revision: { type: "integer", minimum: 1 },
+            conclusion: { type: "string" },
+            decision_receipt_refs: { type: "array", items: { type: "string" } },
+            evidence_receipt_refs: { type: "array", items: { type: "string" } },
+            source: { type: "object" },
+            trust: { type: "string", enum: ["trusted", "review", "untrusted"] },
+            supersedes: { type: "object" },
+            proposal: { type: "object" },
+            projectRoot: { type: "string" }
+          },
+          required: ["goal_id", "goal_revision", "conclusion", "source"]
+        },
+        handler: async (args) => {
+          const result = await rememberGoalSummary(vault, args, { projectRoot: args.projectRoot });
+          return textResult(JSON.stringify(result, null, 2), { result });
+        }
+      },
+      {
         name: "remember_worker_outcome",
         description: "Store a compact redacted Worker outcome as pending memory for human review.",
         inputSchema: {
@@ -720,6 +745,26 @@ export function createContextMcpServerDefinition(vault) {
         },
         handler: async (args) => {
           const result = await recallEvidenceMemory(vault, args);
+          return textResult(JSON.stringify(result, null, 2), { result });
+        }
+      },
+      {
+        name: "recall_goal_summary",
+        description: "Recall compact Goal summaries as historical memory unless the host supplies the matching current revision.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            goal_id: { type: "string" },
+            current_goal_revision: { type: "integer", minimum: 1 },
+            status: { type: "string", enum: ["pending", "active", "pinned", "archived", "expired"] },
+            reviewPending: { type: "boolean", default: false },
+            projectRoot: { type: "string" },
+            includeProjects: { type: "boolean", default: false },
+            limit: { type: "integer", minimum: 1, default: 20 }
+          }
+        },
+        handler: async (args) => {
+          const result = await recallGoalSummary(vault, args);
           return textResult(JSON.stringify(result, null, 2), { result });
         }
       },

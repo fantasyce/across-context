@@ -32,6 +32,19 @@ test("explicit retrieval routes keep pending memory behind review", async () => 
       pr_ready_summary: "Incident correlation gate passed."
     })
   });
+  const goalSummary = await vault.remember({
+    scope: "global",
+    type: "decision",
+    status: "active",
+    trust_level: "trusted",
+    tags: ["goal-summary", "goal:release-quality"],
+    text: JSON.stringify({
+      schema_version: "across-goal-memory-summary/1.0",
+      goal_id: "goal-release-quality",
+      goal_revision: 1,
+      conclusion: "Release quality Goal evidence is reviewable."
+    })
+  });
   await vault.remember({
     scope: "project",
     projectRoot,
@@ -59,9 +72,11 @@ test("explicit retrieval routes keep pending memory behind review", async () => 
   assert.equal(pendingReview.results[0].entry.status, "pending");
 
   const evidence = await retrieveMemory(vault, { route: "evidence_graph", query: "release quality gate" });
-  assert.equal(evidence.results[0].classification.primary_schema, "release_evidence");
+  assert.ok(evidence.results.some((result) => result.classification.primary_schema === "release_evidence"));
   const receiptEvidence = await retrieveMemory(vault, { route: "evidence_graph", query: "incident correlation gate" });
   assert.ok(receiptEvidence.results.some((result) => result.entry.id === pushReceipt.id));
+  const goalEvidence = await retrieveMemory(vault, { route: "evidence_graph", query: "release quality Goal" });
+  assert.ok(goalEvidence.results.some((result) => result.entry.id === goalSummary.id));
 
   await rebuildMemoryProjection(vault);
   const semantic = await retrieveMemory(vault, { route: "embedding", query: "publish verification" });
