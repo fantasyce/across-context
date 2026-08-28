@@ -92,6 +92,8 @@ test("context rejects proposals that attempt to confirm a goal", () => {
   };
 
   assert.throws(() => normalizeGoalChangeProposal(proposal), /operation/);
+  proposal.operations = [{ op: "add", path: "/confirmed_by/agent", value: "autopilot" }];
+  assert.throws(() => normalizeGoalChangeProposal(proposal), /host-owned/);
 });
 
 

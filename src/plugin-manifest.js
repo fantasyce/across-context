@@ -50,6 +50,7 @@ export async function renderPluginManifest(options = {}) {
       agentLoopMemoryHooksV2: true,
       evidenceGraphMemory: true,
       compactGoalMemory: true,
+      goalContractV1: true,
       agentTeamTrustReceipts: true,
       agentTeamTrustReceiptsA2AV2: true,
       skillsBridge: true,
@@ -129,6 +130,11 @@ export async function renderPluginManifest(options = {}) {
       health: {
         command: manifestCommandPath,
         args: ["health", "--json"]
+      },
+      goalContract: {
+        command: manifestCommandPath,
+        args: ["goal-contract", "--json"],
+        schemaVersion: "across-goal-contract/1.0"
       },
       contextPacks: {
         command: manifestCommandPath,

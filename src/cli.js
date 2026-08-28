@@ -21,7 +21,7 @@ import { forgetProjectedMemory, inspectMemoryProjection, rebuildMemoryProjection
 import { runRetrievalEvaluation } from "./retrieval-eval.js";
 import { approveGovernedMemory, improveMemory, rollbackDistilledMemory } from "./memory-distillation.js";
 import { mergeWorkerExperiences, recallableWorkerMemories, rememberWorkerOutcome, revokeWorkerMemories } from "./worker-memory.js";
-import { recallGoalSummary, rememberGoalSummary } from "./goal-memory.js";
+import { normalizeGoalContract, recallGoalSummary, rememberGoalSummary, stableGoalHash } from "./goal-memory.js";
 
 const vault = new ContextVault();
 
@@ -63,6 +63,20 @@ async function main(argv) {
       return;
     }
     console.log(`Remembered ${entry.scope} ${entry.type}: ${entry.text}`);
+    return;
+  }
+
+  if (command === "goal-contract") {
+    const parsed = parseArgs(rest);
+    const normalized = normalizeGoalContract(JSON.parse(String(parsed["contract-json"] || "")));
+    const result = {
+      schema_version: "across-goal-contract-probe/1.0",
+      goal_id: normalized.goal_id,
+      goal_revision: normalized.revision,
+      criterion_ids: normalized.acceptance_criteria.map((criterion) => criterion.criterion_id).sort(),
+      evidence_hash: stableGoalHash(normalized)
+    };
+    console.log(parsed.json ? JSON.stringify(result, null, 2) : `${result.goal_id}@${result.goal_revision} ${result.evidence_hash}`);
     return;
   }
 
@@ -744,6 +758,8 @@ function printHelp() {
 Commands:
   init                                  Create the local context vault
   remember <text> [--scope global|project] [--type preference|decision|note|command|session] [--status pending|active|pinned] [--source-type type] [--source-id id] [--trust-level trusted|review|untrusted] [--observed-at ISO] [--expires-at ISO] [--project path] [--json]
+  goal-contract --contract-json '{}' --json
+                                        Normalize and hash a Goal Contract through the installed runtime
   search <query> [--project path] [--mode keyword|semantic|hybrid] [--review-pending --status pending]
                                         Search active and pinned global/project context by default
   search <query> --json [--explain]     Print structured search results

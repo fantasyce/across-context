@@ -147,6 +147,45 @@ test("CLI stores and recalls compact Goal summaries", async () => {
   assert.equal(recalled.results[0].authority_label, "current_authority_reference");
 });
 
+test("CLI exposes the shared Goal Contract probe", async () => {
+  const home = await mkdtemp(join(tmpdir(), "across-context-cli-goal-probe-"));
+  const env = { ...process.env, ACROSS_CONTEXT_HOME: home };
+  const contract = {
+    schema_version: "across-goal-contract/1.0",
+    goal_id: "goal-cli-probe",
+    revision: 1,
+    task_id: "task-cli-probe",
+    statement: "Verify the installed contract.",
+    success_outcome: "Every plugin returns the same binding.",
+    scope: { includes: ["verification"], excludes: ["release"] },
+    acceptance_criteria: [{
+      criterion_id: "criterion-cli-probe",
+      description: "The probe is stable.",
+      required: true,
+      validator_kind: "contract_test",
+      review_policy: "automatic",
+      source: "user_confirmed"
+    }],
+    dependencies: [],
+    execution_profile: "orchestrated",
+    source: "user",
+    confirmed_by: "human:user",
+    confirmed_at: "2026-08-28T00:00:00Z",
+    created_at: "2026-08-28T00:00:00Z"
+  };
+  const result = JSON.parse((await exec("node", [
+    cli,
+    "goal-contract",
+    "--contract-json",
+    JSON.stringify(contract),
+    "--json"
+  ], { env })).stdout);
+  assert.equal(result.goal_id, contract.goal_id);
+  assert.equal(result.goal_revision, 1);
+  assert.deepEqual(result.criterion_ids, ["criterion-cli-probe"]);
+  assert.match(result.evidence_hash, /^[a-f0-9]{64}$/);
+});
+
 test("CLI exposes Agent Loop memory metrics without raw candidate text", async () => {
   const home = await mkdtemp(join(tmpdir(), "across-context-cli-loop-metrics-home-"));
   const project = await mkdtemp(join(tmpdir(), "across-context-cli-loop-metrics-project-"));
