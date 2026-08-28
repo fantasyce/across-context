@@ -109,8 +109,8 @@ test("goal summary memory persists only compact allowlisted fields", async () =>
     source: { type: "host", ref: "aaa:task-001" },
     trust: "trusted",
     raw_transcript: "BEGIN RAW TRANSCRIPT private conversation END RAW TRANSCRIPT",
-    local_path: "/Users/example/private/repository",
-    token: "sk-example0123456789012345",
+    local_path: "C:\\private\\repository",
+    token: "secret: placeholder-value",
     approval: { approved_by: "human", raw_payload: "must not persist" }
   });
 
@@ -126,7 +126,7 @@ test("goal summary memory persists only compact allowlisted fields", async () =>
     "supersedes",
     "trust"
   ]);
-  assert.doesNotMatch(result.memory.text, /RAW TRANSCRIPT|private\/repository|sk-example|approved_by|raw_payload/);
+  assert.doesNotMatch(result.memory.text, /RAW TRANSCRIPT|private.*repository|placeholder-value|approved_by|raw_payload/);
   assert.equal(result.memory.status, "active");
 });
 
@@ -137,7 +137,7 @@ test("goal summary rejects sensitive conclusion and receipt references", async (
   await assert.rejects(() => rememberGoalSummary(vault, {
     goal_id: "goal-sensitive",
     goal_revision: 1,
-    conclusion: "Use token sk-example0123456789012345",
+    conclusion: "Use secret: placeholder-value",
     source: { type: "host", ref: "aaa:task" },
     trust: "trusted"
   }), /sensitive|secret|token/i);
@@ -145,7 +145,7 @@ test("goal summary rejects sensitive conclusion and receipt references", async (
     goal_id: "goal-sensitive",
     goal_revision: 1,
     conclusion: "Safe conclusion.",
-    evidence_receipt_refs: ["/Users/example/private/evidence.json"],
+    evidence_receipt_refs: ["C:\\private\\evidence.json"],
     source: { type: "host", ref: "aaa:task" },
     trust: "trusted"
   }), /reference/);
