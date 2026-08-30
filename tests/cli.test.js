@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import test from "node:test";
 import assert from "node:assert/strict";
+import { ContextVault } from "../src/vault.js";
 
 const exec = promisify(execFile);
 const cli = join(process.cwd(), "src", "cli.js");
@@ -150,6 +151,24 @@ test("CLI Goal summaries remain pending and non-authoritative", async () => {
     "--json"
   ], { env })).stdout);
   assert.equal(recalled.results[0].authority_label, "historical_memory");
+});
+
+test("CLI forwards explicit quarantined Goal review authority", async () => {
+  const home = await mkdtemp(join(tmpdir(), "across-context-cli-goal-quarantine-"));
+  const env = { ...process.env, ACROSS_CONTEXT_HOME: home };
+  const summary = {
+    goal_id: "goal-cli-quarantine", goal_revision: 1, conclusion: "Review candidate.",
+    source: { type: "external", ref: "external:cli" }, trust: "untrusted"
+  };
+  const remembered = JSON.parse((await exec("node", [cli, "remember-goal-summary", "--summary-json", JSON.stringify(summary), "--json"], { env })).stdout);
+  const vault = new ContextVault({ home });
+  await vault.updateStatus(remembered.memory.id, "quarantined");
+  const recalled = JSON.parse((await exec("node", [
+    cli, "recall-goal-summary", "--goal-id", "goal-cli-quarantine", "--status", "quarantined",
+    "--review-quarantined", "--json"
+  ], { env })).stdout);
+  assert.equal(recalled.result_count, 1);
+  assert.equal(recalled.results[0].activation_eligible, false);
 });
 
 test("CLI exposes the shared Goal Contract probe", async () => {

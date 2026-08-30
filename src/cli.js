@@ -125,7 +125,6 @@ async function main(argv) {
       status: parsed.status,
       reviewPending: Boolean(parsed["review-pending"]),
       reviewQuarantined: Boolean(parsed["review-quarantined"]),
-      reviewQuarantined: Boolean(parsed["review-quarantined"]),
       allowEmptyQuery: Boolean(parsed["allow-empty-query"]),
       includeRouteResults: Boolean(parsed["include-route-results"])
     };
@@ -464,6 +463,7 @@ async function main(argv) {
       current_goal_revision: parsed["current-goal-revision"] ? Number(parsed["current-goal-revision"]) : undefined,
       status: parsed.status,
       reviewPending: Boolean(parsed["review-pending"]),
+      reviewQuarantined: Boolean(parsed["review-quarantined"]),
       projectRoot: parsed.project,
       includeProjects: Boolean(parsed["all-projects"]),
       limit: parsed.limit

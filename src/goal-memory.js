@@ -235,6 +235,7 @@ export async function recallGoalSummary(vault, query = {}) {
   });
   const goalId = query.goal_id ?? query.goalId;
   const results = memories
+    .filter((entry) => entry.source === "goal-summary" && (entry.tags || []).includes("goal-summary"))
     .map((entry) => ({ entry, payload: parseGoalSummary(entry.text) }))
     .filter((item) => item.payload)
     .filter((item) => !goalId || item.payload.goal_id === goalId)
