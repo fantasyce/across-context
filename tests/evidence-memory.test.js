@@ -113,3 +113,22 @@ test("evidence memory preserves Goal claim bindings without trusted verdict fiel
   assert.deepEqual(recalled.results[0].criterion_ids, ["criterion-review", "criterion-tests"]);
   assert.doesNotMatch(remembered.memory.text, /verified|verdict|trusted/);
 });
+
+test("evidence memory rejects incomplete or malformed Goal bindings", () => {
+  const base = {
+    schema_version: "across-evidence-graph/1.0",
+    run_id: "run-invalid-goal",
+    spec_id: "goal-aware-spec",
+    status: "completed",
+    nodes: [],
+    edges: []
+  };
+  assert.throws(() => compactEvidenceGraph({ ...base, goal_id: "goal-only" }), /complete|goal_revision/);
+  assert.throws(() => compactEvidenceGraph({
+    ...base,
+    goal_id: "goal-invalid",
+    goal_revision: -1,
+    input_fingerprint: "not-a-hash",
+    criterion_ids: []
+  }), /goal_revision|fingerprint|criterion/);
+});

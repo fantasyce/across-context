@@ -655,7 +655,7 @@ export function createContextMcpServerDefinition(vault) {
       },
       {
         name: "remember_goal_summary",
-        description: "Store a compact Goal revision conclusion and receipt references without raw transcripts or approval payloads.",
+        description: "Store a compact Goal revision conclusion as pending review; public callers cannot grant host authority.",
         inputSchema: {
           type: "object",
           properties: {
@@ -665,7 +665,7 @@ export function createContextMcpServerDefinition(vault) {
             decision_receipt_refs: { type: "array", items: { type: "string" } },
             evidence_receipt_refs: { type: "array", items: { type: "string" } },
             source: { type: "object" },
-            trust: { type: "string", enum: ["trusted", "review", "untrusted"] },
+            trust: { type: "string", enum: ["review", "untrusted"] },
             supersedes: { type: "object" },
             proposal: { type: "object" },
             projectRoot: { type: "string" }
@@ -756,8 +756,9 @@ export function createContextMcpServerDefinition(vault) {
           properties: {
             goal_id: { type: "string" },
             current_goal_revision: { type: "integer", minimum: 1 },
-            status: { type: "string", enum: ["pending", "active", "pinned", "archived", "expired"] },
+            status: { type: "string", enum: ["pending", "active", "pinned", "archived", "expired", "quarantined"] },
             reviewPending: { type: "boolean", default: false },
+            reviewQuarantined: { type: "boolean", default: false },
             projectRoot: { type: "string" },
             includeProjects: { type: "boolean", default: false },
             limit: { type: "integer", minimum: 1, default: 20 }

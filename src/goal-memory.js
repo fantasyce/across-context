@@ -56,12 +56,18 @@ function sortedJsonValue(value) {
   if (value && typeof value === "object") {
     return Object.fromEntries(Object.keys(value).sort().map((key) => [key, sortedJsonValue(value[key])]));
   }
+  if (typeof value === "number") {
+    if (!Number.isFinite(value) || !Number.isSafeInteger(value)) {
+      throw new TypeError("Goal Contract numbers must be finite safe integers");
+    }
+    return Object.is(value, -0) ? 0 : value;
+  }
   return value;
 }
 
 
 function cloneJson(value) {
-  return JSON.parse(JSON.stringify(value));
+  return JSON.parse(JSON.stringify(sortedJsonValue(value)));
 }
 
 
@@ -110,6 +116,10 @@ export function normalizeGoalContract(value = {}) {
   requiredText(contract.source, "source");
   if (Boolean(contract.confirmed_by) !== Boolean(contract.confirmed_at)) {
     throw new TypeError("confirmed_by and confirmed_at must be supplied together");
+  }
+  if (contract.confirmed_by !== undefined || contract.confirmed_at !== undefined) {
+    requiredText(contract.confirmed_by, "confirmed_by");
+    requiredText(contract.confirmed_at, "confirmed_at");
   }
   requiredText(contract.created_at, "created_at");
   stableGoalHash(contract);
@@ -162,7 +172,14 @@ export async function rememberGoalSummary(vault, input = {}, options = {}) {
   const source = normalizeSummarySource(input.source);
   const pendingProposal = input.proposal?.decision_state === "pending";
   const requestedTrust = normalizeSummaryTrust(input.trust);
-  const trust = pendingProposal || source.type === "autopilot" ? "review" : requestedTrust;
+  const hostDecision = normalizeHostDecision(options.hostDecision, goalId, goalRevision, input);
+  const trust = pendingProposal || source.type === "autopilot"
+    ? "review"
+    : requestedTrust === "untrusted"
+      ? "untrusted"
+      : hostDecision
+        ? "trusted"
+        : "review";
   const payload = {
     schema_version: GOAL_MEMORY_SUMMARY_SCHEMA,
     goal_id: goalId,
@@ -196,7 +213,10 @@ export async function rememberGoalSummary(vault, input = {}, options = {}) {
     memory: entry,
     summary: {
       ...payload,
-      activation_eligible: trust === "trusted" && !pendingProposal
+      activation_eligible: entry.status === "active"
+        && trust === "trusted"
+        && !pendingProposal
+        && !(entry.policy?.quarantineReasons || []).length
     }
   };
 }
@@ -292,6 +312,24 @@ function normalizeSummaryTrust(value) {
 }
 
 
+function normalizeHostDecision(value, goalId, goalRevision, input) {
+  if (value === undefined || value === null) return null;
+  const decision = objectValue(value, "hostDecision");
+  if (decision.schema_version !== "across-host-goal-memory-decision/1.0") {
+    throw new Error("hostDecision schema is invalid");
+  }
+  if (decision.verified !== true) throw new Error("hostDecision must be verified by the host");
+  if (requiredText(decision.goal_id, "hostDecision.goal_id") !== goalId
+    || positiveRevision(decision.goal_revision, "hostDecision.goal_revision") !== goalRevision) {
+    throw new Error("hostDecision Goal binding mismatch");
+  }
+  const receiptRef = requiredText(decision.decision_receipt_ref, "hostDecision.decision_receipt_ref");
+  const suppliedRefs = safeReferences(input.decision_receipt_refs ?? input.decisionReceiptRefs);
+  if (!suppliedRefs.includes(receiptRef)) throw new Error("hostDecision receipt is not bound to the summary");
+  return { receiptRef };
+}
+
+
 function normalizeSupersedes(value) {
   if (value === undefined || value === null) return null;
   const item = objectValue(value, "supersedes");
@@ -317,6 +355,9 @@ function goalRecallStatuses(query) {
   const statuses = requested.map((status) => String(status || "").trim()).filter(Boolean);
   if (statuses.includes("pending") && query.reviewPending !== true) {
     throw new Error("Pending goal memory retrieval requires reviewPending=true");
+  }
+  if (statuses.includes("quarantined") && query.reviewQuarantined !== true) {
+    throw new Error("Quarantined goal memory retrieval requires reviewQuarantined=true");
   }
   return statuses;
 }

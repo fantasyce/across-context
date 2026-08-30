@@ -71,6 +71,15 @@ test("context rejects invalid goal revisions and duplicate criterion identities"
   const duplicate = simpleGoalContract();
   duplicate.acceptance_criteria.push({ ...duplicate.acceptance_criteria[0] });
   assert.throws(() => normalizeGoalContract(duplicate), /criterion_id/);
+
+  const whitespaceAuthority = simpleGoalContract();
+  whitespaceAuthority.confirmed_by = "   ";
+  whitespaceAuthority.confirmed_at = "   ";
+  assert.throws(() => normalizeGoalContract(whitespaceAuthority), /confirmed_by|confirmed_at/);
+
+  assert.throws(() => stableGoalHash({ value: 1e-7 }), /integer/);
+  assert.equal(stableGoalHash({ value: 1.0 }), stableGoalHash({ value: 1 }));
+  assert.equal(stableGoalHash({ value: -0 }), stableGoalHash({ value: 0 }));
 });
 
 
@@ -97,7 +106,7 @@ test("context rejects proposals that attempt to confirm a goal", () => {
 });
 
 
-test("goal summary memory persists only compact allowlisted fields", async () => {
+test("public goal summary memory cannot self-assert trusted host authority", async () => {
   const home = await mkdtemp(join(tmpdir(), "across-context-goal-summary-"));
   const vault = new ContextVault({ home });
   const result = await rememberGoalSummary(vault, {
@@ -127,7 +136,28 @@ test("goal summary memory persists only compact allowlisted fields", async () =>
     "trust"
   ]);
   assert.doesNotMatch(result.memory.text, /RAW TRANSCRIPT|private.*repository|placeholder-value|approved_by|raw_payload/);
-  assert.equal(result.memory.status, "active");
+  assert.equal(result.memory.status, "pending");
+  assert.equal(result.summary.trust, "review");
+  assert.equal(result.summary.activation_eligible, false);
+
+  const approved = await rememberGoalSummary(vault, {
+    goal_id: "goal-task-001",
+    goal_revision: 1,
+    conclusion: "Host decision verified this revision.",
+    decision_receipt_refs: ["decision:goal-task-001:1"],
+    source: { type: "host", ref: "aaa:task-001" },
+    trust: "trusted"
+  }, {
+    hostDecision: {
+      schema_version: "across-host-goal-memory-decision/1.0",
+      goal_id: "goal-task-001",
+      goal_revision: 1,
+      decision_receipt_ref: "decision:goal-task-001:1",
+      verified: true
+    }
+  });
+  assert.equal(approved.memory.status, "active");
+  assert.equal(approved.summary.activation_eligible, true);
 });
 
 
@@ -155,21 +185,30 @@ test("goal summary rejects sensitive conclusion and receipt references", async (
 test("goal summary recall needs a host current revision before it labels authority", async () => {
   const home = await mkdtemp(join(tmpdir(), "across-context-goal-recall-"));
   const vault = new ContextVault({ home });
+  const hostDecision = (revision) => ({
+    schema_version: "across-host-goal-memory-decision/1.0",
+    goal_id: "goal-revisions",
+    goal_revision: revision,
+    decision_receipt_ref: `decision:goal-revisions:${revision}`,
+    verified: true
+  });
   const first = await rememberGoalSummary(vault, {
     goal_id: "goal-revisions",
     goal_revision: 1,
     conclusion: "Revision one completed.",
     source: { type: "host", ref: "aaa:task-revisions" },
-    trust: "trusted"
-  });
+    trust: "trusted",
+    decision_receipt_refs: ["decision:goal-revisions:1"]
+  }, { hostDecision: hostDecision(1) });
   await rememberGoalSummary(vault, {
     goal_id: "goal-revisions",
     goal_revision: 2,
     conclusion: "Revision two completed after scope change.",
     source: { type: "host", ref: "aaa:task-revisions" },
     trust: "trusted",
-    supersedes: { goal_revision: 1, memory_id: first.memory.id }
-  });
+    supersedes: { goal_revision: 1, memory_id: first.memory.id },
+    decision_receipt_refs: ["decision:goal-revisions:2"]
+  }, { hostDecision: hostDecision(2) });
 
   const historical = await recallGoalSummary(vault, { goal_id: "goal-revisions" });
   assert.ok(historical.results.every((item) => item.authority_label === "historical_memory"));
@@ -177,6 +216,30 @@ test("goal summary recall needs a host current revision before it labels authori
   assert.equal(current.results.find((item) => item.goal_revision === 2).authority_label, "current_authority_reference");
   assert.equal(current.results.find((item) => item.goal_revision === 1).authority_label, "historical_memory");
   assert.ok(current.results.every((item) => !("execution_health" in item)));
+});
+
+test("quarantined goal recall requires an explicit quarantine review", async () => {
+  const home = await mkdtemp(join(tmpdir(), "across-context-goal-quarantine-"));
+  const vault = new ContextVault({ home });
+  const remembered = await rememberGoalSummary(vault, {
+    goal_id: "goal-quarantined",
+    goal_revision: 1,
+    conclusion: "Untrusted candidate.",
+    source: { type: "external", ref: "external:candidate" },
+    trust: "untrusted"
+  });
+  await vault.updateStatus(remembered.memory.id, "quarantined");
+  await assert.rejects(
+    () => recallGoalSummary(vault, { goal_id: "goal-quarantined", status: "quarantined" }),
+    /reviewQuarantined/
+  );
+  const recalled = await recallGoalSummary(vault, {
+    goal_id: "goal-quarantined",
+    status: "quarantined",
+    reviewQuarantined: true
+  });
+  assert.equal(recalled.result_count, 1);
+  assert.equal(recalled.results[0].activation_eligible, false);
 });
 
 

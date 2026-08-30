@@ -92,17 +92,37 @@ export async function recallEvidenceMemory(vault, options = {}) {
 export function compactEvidenceGraph(graph) {
   const nodes = Array.isArray(graph.nodes) ? graph.nodes : [];
   const edges = Array.isArray(graph.edges) ? graph.edges : [];
+  const goalFieldsPresent = [graph.goal_id, graph.goal_revision, graph.input_fingerprint, graph.criterion_ids]
+    .some((value) => value !== undefined && value !== null);
+  let goalBinding = {};
+  if (goalFieldsPresent) {
+    if (typeof graph.goal_id !== "string" || !graph.goal_id.trim()) {
+      throw new TypeError("Goal evidence binding requires goal_id");
+    }
+    if (!Number.isInteger(graph.goal_revision) || graph.goal_revision < 1) {
+      throw new TypeError("Goal evidence binding goal_revision must be a positive integer");
+    }
+    if (typeof graph.input_fingerprint !== "string" || !/^[a-f0-9]{64}$/.test(graph.input_fingerprint)) {
+      throw new TypeError("Goal evidence binding input_fingerprint must be a sha256 digest");
+    }
+    if (!Array.isArray(graph.criterion_ids)
+      || graph.criterion_ids.length === 0
+      || graph.criterion_ids.some((item) => typeof item !== "string" || !item.trim())) {
+      throw new TypeError("Goal evidence binding criterion_ids must be non-empty strings");
+    }
+    goalBinding = {
+      goal_id: graph.goal_id.trim(),
+      goal_revision: graph.goal_revision,
+      input_fingerprint: graph.input_fingerprint,
+      criterion_ids: [...new Set(graph.criterion_ids.map((item) => item.trim()))].sort()
+    };
+  }
   const compact = {
     schema_version: "across-evidence-graph/1.0",
     run_id: graph.run_id || null,
     spec_id: graph.spec_id || null,
     status: graph.status || "unknown",
-    ...(graph.goal_id ? {
-      goal_id: String(graph.goal_id),
-      goal_revision: Number(graph.goal_revision),
-      input_fingerprint: String(graph.input_fingerprint || ""),
-      criterion_ids: [...new Set((graph.criterion_ids || []).map(String).filter(Boolean))].sort()
-    } : {}),
+    ...goalBinding,
     nodes: nodes.slice(0, 200).map((node) => ({
       id: String(node.id || ""),
       type: String(node.type || "unknown"),

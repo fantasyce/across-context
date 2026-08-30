@@ -28,11 +28,13 @@ test("CLI remembers, searches, learns, and exports context", async () => {
 
 test("CLI sets up integrations and manages vault records", async () => {
   const home = await mkdtemp(join(tmpdir(), "across-context-cli-automation-home-"));
+  const acrossHome = await mkdtemp(join(tmpdir(), "across-context-cli-automation-across-home-"));
   const project = await mkdtemp(join(tmpdir(), "across-context-cli-automation-project-"));
   await writeFile(join(project, "package.json"), JSON.stringify({ name: "automation-demo" }));
   const env = {
     ...process.env,
     ACROSS_CONTEXT_HOME: home,
+    ACROSS_HOME: acrossHome,
     ACROSS_CONTEXT_TEST_COMMANDS: "codex,claude,cursor"
   };
 
@@ -115,7 +117,7 @@ test("CLI exposes JSON memory lifecycle operations for host apps", async () => {
   assert.equal(forgotten.forgotten, 1);
 });
 
-test("CLI stores and recalls compact Goal summaries", async () => {
+test("CLI Goal summaries remain pending and non-authoritative", async () => {
   const home = await mkdtemp(join(tmpdir(), "across-context-cli-goal-home-"));
   const env = { ...process.env, ACROSS_CONTEXT_HOME: home };
   const summary = {
@@ -134,7 +136,7 @@ test("CLI stores and recalls compact Goal summaries", async () => {
     JSON.stringify(summary),
     "--json"
   ], { env })).stdout);
-  assert.equal(remembered.memory.status, "active");
+  assert.equal(remembered.memory.status, "pending");
   const recalled = JSON.parse((await exec("node", [
     cli,
     "recall-goal-summary",
@@ -142,9 +144,12 @@ test("CLI stores and recalls compact Goal summaries", async () => {
     "goal-cli",
     "--current-goal-revision",
     "1",
+    "--status",
+    "pending",
+    "--review-pending",
     "--json"
   ], { env })).stdout);
-  assert.equal(recalled.results[0].authority_label, "current_authority_reference");
+  assert.equal(recalled.results[0].authority_label, "historical_memory");
 });
 
 test("CLI exposes the shared Goal Contract probe", async () => {

@@ -125,6 +125,7 @@ async function main(argv) {
       status: parsed.status,
       reviewPending: Boolean(parsed["review-pending"]),
       reviewQuarantined: Boolean(parsed["review-quarantined"]),
+      reviewQuarantined: Boolean(parsed["review-quarantined"]),
       allowEmptyQuery: Boolean(parsed["allow-empty-query"]),
       includeRouteResults: Boolean(parsed["include-route-results"])
     };
@@ -822,7 +823,7 @@ Commands:
   recall-evidence --spec-id id|--run-id id [--status pending] [--json]
                                         Recall compact evidence graph memory
   remember-goal-summary --summary-json '{}' [--project path] [--json]
-                                        Store a compact Goal revision summary and receipt references
+                                        Store a compact Goal revision summary as pending review
   recall-goal-summary [--goal-id id] [--current-goal-revision n] [--status pending --review-pending] [--json]
                                         Recall Goal summaries without claiming current authority by default
   remember-agent-team-receipt --pack-id id --receipt-json '{}' [--product-card-json '{}'] [--protocol-readiness-json '{}'] [--json]

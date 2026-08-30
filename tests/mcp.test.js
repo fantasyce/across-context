@@ -155,7 +155,7 @@ test("MCP server definition exposes resources and prompts", async () => {
   assert.equal(distillationPolicy.rollback_supported, true);
 });
 
-test("MCP stores and recalls governed Goal summaries", async () => {
+test("MCP Goal summaries remain pending until a host-owned decision", async () => {
   const home = await mkdtemp(join(tmpdir(), "across-context-mcp-goal-summary-"));
   const vault = new ContextVault({ home });
   const definition = createContextMcpServerDefinition(vault);
@@ -169,9 +169,9 @@ test("MCP stores and recalls governed Goal summaries", async () => {
     source: { type: "host", ref: "aaa:task-mcp" },
     trust: "trusted"
   });
-  assert.equal(stored.structuredContent.result.memory.status, "active");
-  const recalled = await recall.handler({ goal_id: "goal-mcp", current_goal_revision: 2 });
-  assert.equal(recalled.structuredContent.result.results[0].authority_label, "current_authority_reference");
+  assert.equal(stored.structuredContent.result.memory.status, "pending");
+  const recalled = await recall.handler({ goal_id: "goal-mcp", current_goal_revision: 2, status: "pending", reviewPending: true });
+  assert.equal(recalled.structuredContent.result.results[0].authority_label, "historical_memory");
 });
 
 test("MCP stores and recalls compact evidence memory", async () => {
