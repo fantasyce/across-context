@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import test from "node:test";
 import assert from "node:assert/strict";
+import { ContextVault } from "../src/vault.js";
 
 const exec = promisify(execFile);
 const cli = join(process.cwd(), "src", "cli.js");
@@ -28,11 +29,13 @@ test("CLI remembers, searches, learns, and exports context", async () => {
 
 test("CLI sets up integrations and manages vault records", async () => {
   const home = await mkdtemp(join(tmpdir(), "across-context-cli-automation-home-"));
+  const acrossHome = await mkdtemp(join(tmpdir(), "across-context-cli-automation-across-home-"));
   const project = await mkdtemp(join(tmpdir(), "across-context-cli-automation-project-"));
   await writeFile(join(project, "package.json"), JSON.stringify({ name: "automation-demo" }));
   const env = {
     ...process.env,
     ACROSS_CONTEXT_HOME: home,
+    ACROSS_HOME: acrossHome,
     ACROSS_CONTEXT_TEST_COMMANDS: "codex,claude,cursor"
   };
 
@@ -113,6 +116,98 @@ test("CLI exposes JSON memory lifecycle operations for host apps", async () => {
 
   const forgotten = JSON.parse((await exec("node", [cli, "forget", memory.id, "--json"], { env })).stdout);
   assert.equal(forgotten.forgotten, 1);
+});
+
+test("CLI Goal summaries remain pending and non-authoritative", async () => {
+  const home = await mkdtemp(join(tmpdir(), "across-context-cli-goal-home-"));
+  const env = { ...process.env, ACROSS_CONTEXT_HOME: home };
+  const summary = {
+    goal_id: "goal-cli",
+    goal_revision: 1,
+    conclusion: "CLI Goal summary is ready for host reference.",
+    decision_receipt_refs: ["decision:goal-cli:1"],
+    evidence_receipt_refs: ["evidence:goal-cli:1"],
+    source: { type: "host", ref: "aaa:task-cli" },
+    trust: "trusted"
+  };
+  const remembered = JSON.parse((await exec("node", [
+    cli,
+    "remember-goal-summary",
+    "--summary-json",
+    JSON.stringify(summary),
+    "--json"
+  ], { env })).stdout);
+  assert.equal(remembered.memory.status, "pending");
+  const recalled = JSON.parse((await exec("node", [
+    cli,
+    "recall-goal-summary",
+    "--goal-id",
+    "goal-cli",
+    "--current-goal-revision",
+    "1",
+    "--status",
+    "pending",
+    "--review-pending",
+    "--json"
+  ], { env })).stdout);
+  assert.equal(recalled.results[0].authority_label, "historical_memory");
+});
+
+test("CLI forwards explicit quarantined Goal review authority", async () => {
+  const home = await mkdtemp(join(tmpdir(), "across-context-cli-goal-quarantine-"));
+  const env = { ...process.env, ACROSS_CONTEXT_HOME: home };
+  const summary = {
+    goal_id: "goal-cli-quarantine", goal_revision: 1, conclusion: "Review candidate.",
+    source: { type: "external", ref: "external:cli" }, trust: "untrusted"
+  };
+  const remembered = JSON.parse((await exec("node", [cli, "remember-goal-summary", "--summary-json", JSON.stringify(summary), "--json"], { env })).stdout);
+  const vault = new ContextVault({ home });
+  await vault.updateStatus(remembered.memory.id, "quarantined");
+  const recalled = JSON.parse((await exec("node", [
+    cli, "recall-goal-summary", "--goal-id", "goal-cli-quarantine", "--status", "quarantined",
+    "--review-quarantined", "--json"
+  ], { env })).stdout);
+  assert.equal(recalled.result_count, 1);
+  assert.equal(recalled.results[0].activation_eligible, false);
+});
+
+test("CLI exposes the shared Goal Contract probe", async () => {
+  const home = await mkdtemp(join(tmpdir(), "across-context-cli-goal-probe-"));
+  const env = { ...process.env, ACROSS_CONTEXT_HOME: home };
+  const contract = {
+    schema_version: "across-goal-contract/1.0",
+    goal_id: "goal-cli-probe",
+    revision: 1,
+    task_id: "task-cli-probe",
+    statement: "Verify the installed contract.",
+    success_outcome: "Every plugin returns the same binding.",
+    scope: { includes: ["verification"], excludes: ["release"] },
+    acceptance_criteria: [{
+      criterion_id: "criterion-cli-probe",
+      description: "The probe is stable.",
+      required: true,
+      validator_kind: "contract_test",
+      review_policy: "automatic",
+      source: "user_confirmed"
+    }],
+    dependencies: [],
+    execution_profile: "orchestrated",
+    source: "user",
+    confirmed_by: "human:user",
+    confirmed_at: "2026-08-28T00:00:00Z",
+    created_at: "2026-08-28T00:00:00Z"
+  };
+  const result = JSON.parse((await exec("node", [
+    cli,
+    "goal-contract",
+    "--contract-json",
+    JSON.stringify(contract),
+    "--json"
+  ], { env })).stdout);
+  assert.equal(result.goal_id, contract.goal_id);
+  assert.equal(result.goal_revision, 1);
+  assert.deepEqual(result.criterion_ids, ["criterion-cli-probe"]);
+  assert.match(result.evidence_hash, /^[a-f0-9]{64}$/);
 });
 
 test("CLI exposes Agent Loop memory metrics without raw candidate text", async () => {

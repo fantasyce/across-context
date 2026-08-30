@@ -79,6 +79,18 @@ export function isTrustedForActivation(entry, at = new Date()) {
     && !(entry.policy?.quarantineReasons || []).length;
 }
 
+export function goalMemoryAuthorityLabel(entry, payload, currentGoalRevision, at = new Date()) {
+  const eligible = payload?.trust === "trusted"
+    && ["active", "pinned"].includes(effectiveMemoryStatus(entry, at))
+    && isTrustedForActivation(entry, at);
+  return eligible
+    && currentGoalRevision !== undefined
+    && currentGoalRevision !== null
+    && Number(currentGoalRevision) === Number(payload?.goal_revision)
+    ? "current_authority_reference"
+    : "historical_memory";
+}
+
 export function compactTrustSummary(entries = [], at = new Date()) {
   const normalized = entries.map((entry) => ({ ...entry, status: effectiveMemoryStatus(entry, at) }));
   return {

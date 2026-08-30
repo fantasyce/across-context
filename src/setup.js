@@ -22,15 +22,16 @@ export async function setupAcrossContext(options = {}) {
   await vault.init();
 
   const project = { root: projectRoot, installed: [] };
+  const installOptions = { projectRoot, env: options.env || process.env };
   for (const target of targets) {
     const agent = getSupportedAgent(target);
     if (!agent) continue;
     for (const projectTarget of agent.projectTargets) {
       if (projectTarget === "agents") {
-        const result = await installAgent(vault, "codex", { projectRoot });
+        const result = await installAgent(vault, "codex", installOptions);
         project.installed.push({ agent: target, target: projectTarget, path: result.path });
       } else if (projectTarget === "cursor") {
-        const result = await installAgent(vault, "cursor", { projectRoot });
+        const result = await installAgent(vault, "cursor", installOptions);
         project.installed.push({ agent: target, target: projectTarget, path: result.path });
       } else {
         const result = await exportContext(vault, { projectRoot, target: projectTarget });
@@ -119,4 +120,3 @@ async function fileStatus(path) {
     return "missing";
   }
 }
-

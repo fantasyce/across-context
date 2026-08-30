@@ -86,3 +86,49 @@ test("evidence memory remains parseable when graph topology is large", async () 
   assert.equal(recalled.results[0].graph_summary.original_node_count, 80);
   assert.doesNotMatch(remembered.memory.text, /large payload should not be stored/);
 });
+
+test("evidence memory preserves Goal claim bindings without trusted verdict fields", async () => {
+  const home = await mkdtemp(join(tmpdir(), "across-context-evidence-goal-"));
+  const vault = new ContextVault({ home });
+  const remembered = await rememberEvidenceMemory(vault, {
+    graph: {
+      schema_version: "across-evidence-graph/1.0",
+      run_id: "run-goal",
+      spec_id: "goal-aware-spec",
+      status: "completed",
+      goal_id: "goal-evidence",
+      goal_revision: 3,
+      input_fingerprint: "a".repeat(64),
+      criterion_ids: ["criterion-tests", "criterion-review"],
+      verified: true,
+      verdict: "trusted",
+      nodes: [],
+      edges: []
+    },
+    summary: "Goal evidence claims were recorded."
+  });
+  const recalled = await recallEvidenceMemory(vault, { runId: "run-goal", status: "pending" });
+  assert.equal(recalled.results[0].goal_id, "goal-evidence");
+  assert.equal(recalled.results[0].goal_revision, 3);
+  assert.deepEqual(recalled.results[0].criterion_ids, ["criterion-review", "criterion-tests"]);
+  assert.doesNotMatch(remembered.memory.text, /verified|verdict|trusted/);
+});
+
+test("evidence memory rejects incomplete or malformed Goal bindings", () => {
+  const base = {
+    schema_version: "across-evidence-graph/1.0",
+    run_id: "run-invalid-goal",
+    spec_id: "goal-aware-spec",
+    status: "completed",
+    nodes: [],
+    edges: []
+  };
+  assert.throws(() => compactEvidenceGraph({ ...base, goal_id: "goal-only" }), /complete|goal_revision/);
+  assert.throws(() => compactEvidenceGraph({
+    ...base,
+    goal_id: "goal-invalid",
+    goal_revision: -1,
+    input_fingerprint: "not-a-hash",
+    criterion_ids: []
+  }), /goal_revision|fingerprint|criterion/);
+});

@@ -49,6 +49,8 @@ export async function renderPluginManifest(options = {}) {
       agentLoopMemoryHooks: true,
       agentLoopMemoryHooksV2: true,
       evidenceGraphMemory: true,
+      compactGoalMemory: true,
+      goalContractV1: true,
       agentTeamTrustReceipts: true,
       agentTeamTrustReceiptsA2AV2: true,
       skillsBridge: true,
@@ -129,6 +131,11 @@ export async function renderPluginManifest(options = {}) {
         command: manifestCommandPath,
         args: ["health", "--json"]
       },
+      goalContract: {
+        command: manifestCommandPath,
+        args: ["goal-contract", "--json"],
+        schemaVersion: "across-goal-contract/1.0"
+      },
       contextPacks: {
         command: manifestCommandPath,
         args: ["context-packs", "--all-projects", "--json"]
@@ -165,6 +172,8 @@ export async function renderPluginManifest(options = {}) {
           getAgentLoopMemoryPolicy: "get_agent_loop_memory_policy",
           rememberEvidenceMemory: "remember_evidence_memory",
           recallEvidenceMemory: "recall_evidence_memory",
+          rememberGoalSummary: "remember_goal_summary",
+          recallGoalSummary: "recall_goal_summary",
           rememberAgentTeamReceipt: "remember_agent_team_receipt",
           recallAgentTeamReceipts: "recall_agent_team_receipts",
           exportSkills: "export_skills",

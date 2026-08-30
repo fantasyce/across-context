@@ -80,7 +80,11 @@ export async function recallEvidenceMemory(vault, options = {}) {
       run_id: payload.run_id,
       summary: payload.summary,
       graph_summary: payload.evidence_graph?.summary || {},
-      graph_hash: payload.evidence_graph?.graph_hash || null
+      graph_hash: payload.evidence_graph?.graph_hash || null,
+      goal_id: payload.evidence_graph?.goal_id || null,
+      goal_revision: payload.evidence_graph?.goal_revision || null,
+      input_fingerprint: payload.evidence_graph?.input_fingerprint || null,
+      criterion_ids: payload.evidence_graph?.criterion_ids || []
     }))
   };
 }
@@ -88,11 +92,37 @@ export async function recallEvidenceMemory(vault, options = {}) {
 export function compactEvidenceGraph(graph) {
   const nodes = Array.isArray(graph.nodes) ? graph.nodes : [];
   const edges = Array.isArray(graph.edges) ? graph.edges : [];
+  const goalFieldsPresent = [graph.goal_id, graph.goal_revision, graph.input_fingerprint, graph.criterion_ids]
+    .some((value) => value !== undefined && value !== null);
+  let goalBinding = {};
+  if (goalFieldsPresent) {
+    if (typeof graph.goal_id !== "string" || !graph.goal_id.trim()) {
+      throw new TypeError("Goal evidence binding requires goal_id");
+    }
+    if (!Number.isInteger(graph.goal_revision) || graph.goal_revision < 1) {
+      throw new TypeError("Goal evidence binding goal_revision must be a positive integer");
+    }
+    if (typeof graph.input_fingerprint !== "string" || !/^[a-f0-9]{64}$/.test(graph.input_fingerprint)) {
+      throw new TypeError("Goal evidence binding input_fingerprint must be a sha256 digest");
+    }
+    if (!Array.isArray(graph.criterion_ids)
+      || graph.criterion_ids.length === 0
+      || graph.criterion_ids.some((item) => typeof item !== "string" || !item.trim())) {
+      throw new TypeError("Goal evidence binding criterion_ids must be non-empty strings");
+    }
+    goalBinding = {
+      goal_id: graph.goal_id.trim(),
+      goal_revision: graph.goal_revision,
+      input_fingerprint: graph.input_fingerprint,
+      criterion_ids: [...new Set(graph.criterion_ids.map((item) => item.trim()))].sort()
+    };
+  }
   const compact = {
     schema_version: "across-evidence-graph/1.0",
     run_id: graph.run_id || null,
     spec_id: graph.spec_id || null,
     status: graph.status || "unknown",
+    ...goalBinding,
     nodes: nodes.slice(0, 200).map((node) => ({
       id: String(node.id || ""),
       type: String(node.type || "unknown"),
@@ -127,6 +157,12 @@ function evidenceMemoryPayload({ specId, runId, summary, compactGraph, includeRe
     summary: compactGraph.summary,
     graph_hash: compactGraph.graph_hash
   };
+  if (compactGraph.goal_id) {
+    evidenceGraph.goal_id = compactGraph.goal_id;
+    evidenceGraph.goal_revision = compactGraph.goal_revision;
+    evidenceGraph.input_fingerprint = compactGraph.input_fingerprint;
+    evidenceGraph.criterion_ids = compactGraph.criterion_ids;
+  }
   if (includeRefs) {
     evidenceGraph.node_refs = compactGraph.nodes.slice(0, 3).map((node) => ({
       id: node.id,
