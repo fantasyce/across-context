@@ -324,8 +324,8 @@ operating instructions, and automatic memory needs guardrails.
 
 ### Install
 
-The current open-source distribution is GitHub-first. The `v0.12.0` tag and
-GitHub source archives are the canonical release artifacts; no extra npm
+The prepared open-source distribution is GitHub-first. After publication, the `v0.12.0` tag and
+GitHub source archives will be the canonical release artifacts; no extra npm
 tarball asset is attached to the GitHub Release, and npm registry publication is
 not required for hosts to install or run the plugin.
 
