@@ -20,7 +20,7 @@ import { recallGoalSummary, rememberGoalSummary } from "./goal-memory.js";
 export function createContextMcpServerDefinition(vault) {
   return {
     name: "across-context",
-    version: "0.11.1",
+    version: "0.12.0",
     resources: [
       {
         uri: "across-context://agent-card",

@@ -324,10 +324,14 @@ operating instructions, and automatic memory needs guardrails.
 
 ### Install
 
-The current open-source distribution is GitHub-first. The `v0.11.1` tag and
+The current open-source distribution is GitHub-first. The `v0.12.0` tag and
 GitHub source archives are the canonical release artifacts; no extra npm
 tarball asset is attached to the GitHub Release, and npm registry publication is
 not required for hosts to install or run the plugin.
+
+`v0.12.0` adds governed compact Goal summaries, criterion-bound evidence
+memory, revision-aware authority labels, and pending-only Autopilot proposals
+without making Context the Goal authority.
 
 Install from source for development:
 
@@ -341,7 +345,7 @@ Or build and install a local npm tarball from the checked-out release tag:
 
 ```bash
 npm pack
-npm install -g ./across-context-0.11.1.tgz
+npm install -g ./across-context-0.12.0.tgz
 ```
 
 Verify:
